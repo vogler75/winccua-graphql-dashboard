@@ -1,0 +1,778 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GraphQL Dashboard</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f0f0f0;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .login-section {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        
+        .login-section.hidden {
+            display: none;
+        }
+        
+        .dashboard-section {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        
+        .dashboard-section.hidden {
+            display: none;
+        }
+        
+        .tag-display {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .tag-card {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            border: 1px solid #dee2e6;
+            min-height: 250px;
+        }
+        
+        .tag-title {
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 15px;
+            color: #333;
+        }
+        
+        .tag-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #007bff;
+            margin-bottom: 10px;
+        }
+        
+        .tag-info {
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 5px;
+        }
+        
+        .gauge-container {
+            width: 120px;
+            height: 120px;
+            margin: 15px auto;
+            position: relative;
+        }
+        
+        .gauge {
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            background: conic-gradient(#28a745 0%, #ffc107 70%, #dc3545 90%, #e9ecef 100%);
+            position: relative;
+            padding: 10px;
+            box-sizing: border-box;
+        }
+        
+        .gauge::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 80%;
+            height: 80%;
+            background: #f8f9fa;
+            border-radius: 50%;
+        }
+        
+        .gauge-needle {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 2px;
+            height: 40%;
+            background: #dc3545;
+            transform-origin: bottom center;
+            transform: translate(-50%, -100%) rotate(0deg);
+            transition: transform 0.5s ease;
+            z-index: 10;
+        }
+        
+        .gauge-center {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 8px;
+            height: 8px;
+            background: #333;
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 11;
+        }
+        
+        .gauge-value {
+            position: absolute;
+            top: 65%;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 14px;
+            font-weight: bold;
+            color: #333;
+            z-index: 12;
+        }
+        
+        .status {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+            margin-top: 5px;
+        }
+        
+        .status.connected {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        
+        .status.disconnected {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+        
+        .status.polling {
+            background-color: #fff3cd;
+            color: #856404;
+        }
+        
+        .login-form {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        
+        .login-form input {
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        
+        .login-form button {
+            padding: 8px 16px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        
+        .login-form button:hover {
+            background-color: #0056b3;
+        }
+        
+        .logout-btn {
+            float: right;
+            padding: 8px 16px;
+            background-color: #dc3545;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        
+        .logout-btn:hover {
+            background-color: #c82333;
+        }
+        
+        .error {
+            color: #dc3545;
+            margin-top: 10px;
+        }
+        
+        .update-indicator {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            background-color: #28a745;
+            border-radius: 50%;
+            margin-left: 5px;
+            animation: blink 1s ease-in-out;
+        }
+        
+        @keyframes blink {
+            0%, 50% { opacity: 1; }
+            51%, 100% { opacity: 0.3; }
+        }
+        
+        .trend-section {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        
+        .trend-container {
+            position: relative;
+            height: 300px;
+            margin-top: 15px;
+        }
+        
+        .trend-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        
+        .trend-controls {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        
+        .trend-button {
+            padding: 5px 10px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+        
+        .trend-button:hover {
+            background-color: #0056b3;
+        }
+        
+        .trend-status {
+            font-size: 12px;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Power Meter Dashboard</h1>
+            <p>Real-time Power Monitoring (0-4000 W)</p>
+        </div>
+
+        <div class="login-section" id="loginSection">
+            <h3>Login Required</h3>
+            <div class="login-form">
+                <input type="text" id="username" placeholder="Username" required value="username1">
+                <input type="password" id="password" placeholder="Password" required value="password1">
+                <button onclick="login()">Login</button>
+            </div>
+            <div id="loginError" class="error"></div>
+        </div>
+
+        <div class="dashboard-section hidden" id="dashboardSection">
+            <button class="logout-btn" onclick="logout()">Logout</button>
+            <h3>Power Meter Monitoring</h3>
+            
+            <div class="tag-display">
+                <div class="tag-card">
+                    <div class="tag-title">Meter Input Watts</div>
+                    <div class="gauge-container">
+                        <div class="gauge">
+                            <div class="gauge-needle" id="meterInputWattNeedle"></div>
+                            <div class="gauge-center"></div>
+                            <div class="gauge-value" id="meterInputWattDisplay">0</div>
+                        </div>
+                    </div>
+                    <div class="tag-info">Quality: <span id="meterInputWattQuality">--</span></div>
+                    <div class="tag-info">Timestamp: <span id="meterInputWattTimestamp">--</span></div>
+                    <div class="tag-info">Status: <span class="status disconnected" id="meterInputWattStatus">Disconnected</span></div>
+                </div>
+                
+                <div class="tag-card">
+                    <div class="tag-title">Meter Output Watts</div>
+                    <div class="gauge-container">
+                        <div class="gauge">
+                            <div class="gauge-needle" id="meterOutputWattNeedle"></div>
+                            <div class="gauge-center"></div>
+                            <div class="gauge-value" id="meterOutputWattDisplay">0</div>
+                        </div>
+                    </div>
+                    <div class="tag-info">Quality: <span id="meterOutputWattQuality">--</span></div>
+                    <div class="tag-info">Timestamp: <span id="meterOutputWattTimestamp">--</span></div>
+                    <div class="tag-info">Status: <span class="status disconnected" id="meterOutputWattStatus">Disconnected</span></div>
+                </div>
+                
+                <div class="tag-card">
+                    <div class="tag-title">PV Power Watts</div>
+                    <div class="gauge-container">
+                        <div class="gauge">
+                            <div class="gauge-needle" id="pvPowerWattNeedle"></div>
+                            <div class="gauge-center"></div>
+                            <div class="gauge-value" id="pvPowerWattDisplay">0</div>
+                        </div>
+                    </div>
+                    <div class="tag-info">Quality: <span id="pvPowerWattQuality">--</span></div>
+                    <div class="tag-info">Timestamp: <span id="pvPowerWattTimestamp">--</span></div>
+                    <div class="tag-info">Status: <span class="status disconnected" id="pvPowerWattStatus">Disconnected</span></div>
+                </div>
+            </div>
+            
+            <!-- Trend Chart Section -->
+            <div class="trend-section">
+                <div class="trend-header">
+                    <h3>Power Production vs Consumption Trend</h3>
+                    <div class="trend-controls">
+                        <button class="trend-button" onclick="refreshTrendChart()">Refresh</button>
+                        <span class="trend-status" id="trendStatus">Loading...</span>
+                    </div>
+                </div>
+                <div class="trend-container">
+                    <canvas id="trendChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Load Chart.js library via CDN with proper loading -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@2.0.1/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+    
+    <!-- Load the WinCC Unified library -->
+    <script src="winccunified.js"></script>
+
+    <script>
+        // Use the WinCC Unified library
+        let winccClient = null;
+        let subscriptions = [];
+        let trendChart = null;
+        
+        const powerMeterTags = [
+            'PV-Vogler-PC::Meter_Input_WattAct',
+            'PV-Vogler-PC::Meter_Output_WattAct',
+            'PV-Vogler-PC::PV_Power_WattAct'
+        ];
+        
+        const tagDisplayMapping = {
+            'PV-Vogler-PC::Meter_Input_WattAct': {
+                needle: 'meterInputWattNeedle',
+                display: 'meterInputWattDisplay',
+                quality: 'meterInputWattQuality',
+                timestamp: 'meterInputWattTimestamp',
+                status: 'meterInputWattStatus'
+            },
+            'PV-Vogler-PC::Meter_Output_WattAct': {
+                needle: 'meterOutputWattNeedle',
+                display: 'meterOutputWattDisplay',
+                quality: 'meterOutputWattQuality',
+                timestamp: 'meterOutputWattTimestamp',
+                status: 'meterOutputWattStatus'
+            },
+            'PV-Vogler-PC::PV_Power_WattAct': {
+                needle: 'pvPowerWattNeedle',
+                display: 'pvPowerWattDisplay',
+                quality: 'pvPowerWattQuality',
+                timestamp: 'pvPowerWattTimestamp',
+                status: 'pvPowerWattStatus'
+            }
+        };
+
+        async function login() {
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            const errorDiv = document.getElementById('loginError');
+
+            if (!username || !password) {
+                errorDiv.textContent = 'Please enter both username and password';
+                return;
+            }
+
+            try {
+                // Initialize WinCC Unified client
+                winccClient = new WinCCUnified('/graphql', `ws://${window.location.host}/graphql`);
+                //winccClient = new WinCCUnified('http://DESKTOP-KHLB071:4000/graphql', `ws://DESKTOP-KHLB071:4000/graphql`);
+                
+                // Login using the library
+                const session = await winccClient.login(username, password);
+                
+                // Hide login section and show dashboard
+                document.getElementById('loginSection').classList.add('hidden');
+                document.getElementById('dashboardSection').classList.remove('hidden');
+                
+                // Start monitoring
+                startMonitoring();
+                
+                errorDiv.textContent = '';
+                console.log('Logged in successfully:', session.user?.name);
+            } catch (error) {
+                errorDiv.textContent = error.message;
+                console.error('Login error:', error);
+            }
+        }
+
+        function logout() {
+            // Clean up all subscriptions
+            subscriptions.forEach(sub => {
+                if (sub) {
+                    sub.unsubscribe();
+                }
+            });
+            subscriptions = [];
+            
+            // Dispose WinCC client
+            if (winccClient) {
+                winccClient.dispose();
+                winccClient = null;
+            }
+            
+            // Show login section and hide dashboard
+            document.getElementById('loginSection').classList.remove('hidden');
+            document.getElementById('dashboardSection').classList.add('hidden');
+            
+            // Reset displays
+            resetDisplays();
+        }
+
+        function startMonitoring() {
+            // Start subscriptions for all power meter tags
+            startSubscriptions();
+            
+            // Initialize and load trend chart
+            waitForChart();
+        }
+
+        let chartLoadAttempts = 0;
+        function waitForChart() {
+            chartLoadAttempts++;
+            if (typeof Chart !== 'undefined') {
+                console.log('Chart.js loaded successfully');
+                initializeTrendChart();
+                loadTrendData();
+            } else if (chartLoadAttempts < 50) { // 5 second timeout
+                console.log('Waiting for Chart.js to load... attempt', chartLoadAttempts);
+                setTimeout(waitForChart, 100);
+            } else {
+                console.error('Chart.js failed to load after 5 seconds');
+                document.getElementById('trendStatus').textContent = 'Chart library failed to load';
+            }
+        }
+
+        async function startSubscriptions() {
+            // Set all tags to connecting status
+            powerMeterTags.forEach(tagName => {
+                const mapping = tagDisplayMapping[tagName];
+                if (mapping) {
+                    document.getElementById(mapping.status).textContent = 'Connecting...';
+                    document.getElementById(mapping.status).className = 'status polling';
+                }
+            });
+
+            try {
+                // Create subscription for all power meter tags
+                const subscription = await winccClient.subscribeToTagValues(powerMeterTags, (data, error) => {
+                    if (error) {
+                        console.error('Subscription error:', error);
+                        // Set all tags to error status
+                        powerMeterTags.forEach(tagName => {
+                            const mapping = tagDisplayMapping[tagName];
+                            if (mapping) {
+                                document.getElementById(mapping.status).textContent = 'Error';
+                                document.getElementById(mapping.status).className = 'status disconnected';
+                            }
+                        });
+                        return;
+                    }
+
+                    if (data) {
+                        // Update display for the specific tag
+                        const tagName = data.name;
+                        const mapping = tagDisplayMapping[tagName];
+                        if (mapping) {
+                            document.getElementById(mapping.status).textContent = 'Connected';
+                            document.getElementById(mapping.status).className = 'status connected';
+                            updateTagDisplay(tagName, data);
+                        }
+                    }
+                });
+                
+                subscriptions.push(subscription);
+            } catch (error) {
+                console.error('Failed to create subscriptions:', error);
+                // Set all tags to error status
+                powerMeterTags.forEach(tagName => {
+                    const mapping = tagDisplayMapping[tagName];
+                    if (mapping) {
+                        document.getElementById(mapping.status).textContent = 'Error';
+                        document.getElementById(mapping.status).className = 'status disconnected';
+                    }
+                });
+            }
+        }
+
+        function updateTagDisplay(tagName, tagData) {
+            const value = tagData.value?.value || 0;
+            const quality = tagData.value?.quality?.quality || '--';
+            const timestamp = tagData.value?.timestamp || '--';
+            const mapping = tagDisplayMapping[tagName];
+            
+            if (!mapping) return;
+            
+            // Update display values - round to whole numbers
+            const roundedValue = Math.round(parseFloat(value) || 0);
+            document.getElementById(mapping.display).textContent = roundedValue;
+            document.getElementById(mapping.quality).textContent = quality;
+            document.getElementById(mapping.timestamp).textContent = formatTimestamp(timestamp);
+            
+            // Update gauge needle (0-4000 range)
+            const numericValue = parseFloat(value);
+            if (!isNaN(numericValue)) {
+                // Calculate rotation angle for 0-4000 range (180 degrees total)
+                const percentage = Math.min(Math.max(numericValue / 4000, 0), 1);
+                const angle = (percentage * 180) - 90; // -90 to 90 degrees
+                document.getElementById(mapping.needle).style.transform = `translate(-50%, -100%) rotate(${angle}deg)`;
+            }
+            
+            // Update trend chart if this is a tag we're tracking
+            if ((tagName === 'PV-Vogler-PC::PV_Power_WattAct' || tagName === 'PV-Vogler-PC::Meter_Input_WattAct') && timestamp !== '--') {
+                updateTrendChart(tagName, value, timestamp);
+            }
+            
+            // Add update indicator
+            const valueElement = document.getElementById(mapping.display);
+            const indicator = document.createElement('span');
+            indicator.className = 'update-indicator';
+            valueElement.appendChild(indicator);
+            setTimeout(() => indicator.remove(), 1000);
+        }
+
+        function formatTimestamp(timestamp) {
+            if (!timestamp || timestamp === '--') return '--';
+            try {
+                return new Date(timestamp).toLocaleString();
+            } catch {
+                return timestamp;
+            }
+        }
+
+        function resetDisplays() {
+            powerMeterTags.forEach(tagName => {
+                const mapping = tagDisplayMapping[tagName];
+                if (mapping) {
+                    document.getElementById(mapping.display).textContent = '0';
+                    document.getElementById(mapping.quality).textContent = '--';
+                    document.getElementById(mapping.timestamp).textContent = '--';
+                    document.getElementById(mapping.status).textContent = 'Disconnected';
+                    document.getElementById(mapping.status).className = 'status disconnected';
+                    document.getElementById(mapping.needle).style.transform = 'translate(-50%, -100%) rotate(-90deg)';
+                }
+            });
+            
+            // Reset trend chart
+            if (trendChart) {
+                trendChart.data.datasets[0].data = [];
+                trendChart.update();
+            }
+            document.getElementById('trendStatus').textContent = 'Disconnected';
+        }
+
+        function initializeTrendChart() {
+            if (typeof Chart === 'undefined') {
+                console.error('Chart.js is not loaded');
+                document.getElementById('trendStatus').textContent = 'Chart library not available';
+                return;
+            }
+            
+            const ctx = document.getElementById('trendChart').getContext('2d');
+            
+            trendChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    datasets: [{
+                        label: 'PV Power Production (W)',
+                        data: [],
+                        borderColor: '#28a745',
+                        backgroundColor: 'rgba(40, 167, 69, 0.1)',
+                        borderWidth: 2,
+                        fill: false,
+                        tension: 0.1
+                    }, {
+                        label: 'Meter Input Consumption (W)',
+                        data: [],
+                        borderColor: '#dc3545',
+                        backgroundColor: 'rgba(220, 53, 69, 0.1)',
+                        borderWidth: 2,
+                        fill: false,
+                        tension: 0.1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: {
+                            type: 'time',
+                            time: {
+                                unit: 'minute',
+                                displayFormats: {
+                                    minute: 'HH:mm'
+                                }
+                            },
+                            title: {
+                                display: true,
+                                text: 'Time'
+                            }
+                        },
+                        y: {
+                            beginAtZero: true,
+                            max: 4000,
+                            title: {
+                                display: true,
+                                text: 'Power (W)'
+                            }
+                        }
+                    },
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Power Production vs Consumption - Last 1000 Points Each'
+                        },
+                        legend: {
+                            display: true,
+                            position: 'top'
+                        }
+                    },
+                    animation: {
+                        duration: 750
+                    }
+                }
+            });
+        }
+
+        async function loadTrendData() {
+            try {
+                document.getElementById('trendStatus').textContent = 'Loading historical data...';
+                
+                const endTime = new Date();
+                
+                // Load both PV Power and Meter Input data
+                const [pvLoggedValues, meterLoggedValues] = await Promise.all([
+                    winccClient.getLoggedTagValues(
+                        ['PV-Vogler-PC::PV_Power_WattAct:LoggingTag_1'],
+                        null,
+                        endTime.toISOString(),
+                        1000,
+                        'TIME_DESC'
+                    ),
+                    winccClient.getLoggedTagValues(
+                        ['PV-Vogler-PC::Meter_Input_WattAct:LoggingTag_1'],
+                        null,
+                        endTime.toISOString(),
+                        1000,
+                        'TIME_DESC'
+                    )
+                ]);
+                
+                let totalDataPoints = 0;
+                
+                // Process PV Power data
+                if (pvLoggedValues && pvLoggedValues.length > 0 && pvLoggedValues[0].values) {
+                    const pvChartData = pvLoggedValues[0].values.reverse().map(item => ({
+                        x: new Date(item.value.timestamp),
+                        y: parseFloat(item.value.value) || 0
+                    }));
+                    trendChart.data.datasets[0].data = pvChartData;
+                    totalDataPoints += pvChartData.length;
+                }
+                
+                // Process Meter Input data
+                if (meterLoggedValues && meterLoggedValues.length > 0 && meterLoggedValues[0].values) {
+                    const meterChartData = meterLoggedValues[0].values.reverse().map(item => ({
+                        x: new Date(item.value.timestamp),
+                        y: parseFloat(item.value.value) || 0
+                    }));
+                    trendChart.data.datasets[1].data = meterChartData;
+                    totalDataPoints += meterChartData.length;
+                }
+                
+                trendChart.update();
+                
+                if (totalDataPoints > 0) {
+                    document.getElementById('trendStatus').textContent = `${totalDataPoints} total data points loaded`;
+                } else {
+                    document.getElementById('trendStatus').textContent = 'No historical data available';
+                }
+                
+            } catch (error) {
+                console.error('Failed to load trend data:', error);
+                document.getElementById('trendStatus').textContent = 'Failed to load data';
+            }
+        }
+
+        function refreshTrendChart() {
+            loadTrendData();
+        }
+
+        function updateTrendChart(tagName, value, timestamp) {
+            if (!trendChart) return;
+            
+            const newDataPoint = {
+                x: new Date(timestamp),
+                y: parseFloat(value) || 0
+            };
+            
+            // Determine which dataset to update based on tag name
+            let datasetIndex = -1;
+            if (tagName === 'PV-Vogler-PC::PV_Power_WattAct') {
+                datasetIndex = 0; // PV Power dataset
+            } else if (tagName === 'PV-Vogler-PC::Meter_Input_WattAct') {
+                datasetIndex = 1; // Meter Input dataset
+            }
+            
+            if (datasetIndex >= 0) {
+                // Add new data point to the appropriate dataset
+                trendChart.data.datasets[datasetIndex].data.push(newDataPoint);
+                
+                // Keep only last 1000 points per dataset
+                if (trendChart.data.datasets[datasetIndex].data.length > 1000) {
+                    trendChart.data.datasets[datasetIndex].data.shift();
+                }
+                
+                // Update chart
+                trendChart.update('none'); // No animation for real-time updates
+            }
+        }
+
+        // Allow Enter key to submit login
+        document.getElementById('username').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') login();
+        });
+        
+        document.getElementById('password').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') login();
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,30 @@
+{
+  "name": "test-unified-graphql",
+  "version": "1.0.0",
+  "description": "A JavaScript/Node.js client library for GraphQL server operations",
+  "main": "winccunified.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "graphql",
+    "client",
+    "websocket",
+    "subscription"
+  ],
+  "author": "Andreas Vogler",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^4.18.2",
+    "http-proxy": "^1.18.1",
+    "graphql": "^16.8.1",
+    "graphql-request": "^6.1.0",
+    "graphql-ws": "^5.14.2",
+    "ws": "^8.14.2"
+  },
+  "devDependencies": {
+    "@types/node": "^20.8.6",
+    "typescript": "^5.2.2"
+  }
+}
