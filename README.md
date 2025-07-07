@@ -236,33 +236,6 @@ alarmSubscription.unsubscribe();
 reduSubscription.unsubscribe();
 ```
 
-## Available Power Tags
-
-The dashboard monitors these WinCC Unified tags:
-
-### Power/Energy Tags
-- `PV-Vogler-PC::Meter_Input_WattAct` - Grid power consumption (W)
-- `PV-Vogler-PC::Meter_Output_WattAct` - Grid power output (W)
-- `PV-Vogler-PC::PV_Power_WattAct` - Solar power production (W)
-- `PV-Vogler-PC::PV_Spot_ETODAY_KWH` - Energy produced today (kWh)
-- `PV-Vogler-PC::PV_Spot_ETOTAL_KWH` - Total energy produced (kWh)
-
-### AC Power (3-Phase)
-- `PV-Vogler-PC::PV_Spot_PAC1_WATT` - AC Power Phase 1 (W)
-- `PV-Vogler-PC::PV_Spot_PAC2_WATT` - AC Power Phase 2 (W)
-- `PV-Vogler-PC::PV_Spot_PAC3_WATT` - AC Power Phase 3 (W)
-- `PV-Vogler-PC::PV_Spot_PACTOT_WATT` - Total AC Power (W)
-
-### DC Power (Solar Strings)
-- `PV-Vogler-PC::PV_Spot_PDC1_WATT` - DC Power String 1 (W)
-- `PV-Vogler-PC::PV_Spot_PDC2_WATT` - DC Power String 2 (W)
-- `PV-Vogler-PC::PV_Spot_PDCTOT_WATT` - Total DC Power (W)
-
-### Logging Tags (for Historical Data)
-- `PV-Vogler-PC::PV_Power_WattAct:LoggingTag_1` - PV Power history
-- `PV-Vogler-PC::Meter_Input_WattAct:LoggingTag_1` - Consumption history
-- `PV-Vogler-PC::Meter_Output_WattAct:LoggingTag_1` - Output history
-
 ## Configuration
 
 ### Server Configuration
@@ -283,9 +256,51 @@ The dashboard proxies requests to your WinCC Unified server:
 client.dispose();
 ```
 
-## API Reference
+## Complete GraphQL API Reference
 
-### WinCCUnified Class
+### Queries
+
+#### Authentication & Session Management
+- **`session(allSessions: Boolean)`** - Get current session information
+- **`nonce`** - Get nonce for SWAC authentication
+- **`identityProviderURL`** - Get identity provider URL for SWAC login
+
+#### Tag Operations
+- **`tagValues(names: [String!]!, directRead: Boolean)`** - Query current tag values
+- **`loggedTagValues(names: [String]!, startTime: Timestamp, endTime: Timestamp, maxNumberOfValues: Int, sortingMode: LoggedTagValuesSortingModeEnum, boundingValuesMode: LoggedTagValuesBoundingModeEnum)`** - Query historical logged tag data
+- **`browse(nameFilters: [String], objectTypeFilters: [ObjectTypesEnum], baseTypeFilters: [String], language: String)`** - Browse available tags, elements, types, alarms and objects
+
+#### Alarm Management
+- **`activeAlarms(systemNames: [String], filterString: String, filterLanguage: String, languages: [String])`** - Query active alarms
+- **`loggedAlarms(systemNames: [String], filterString: String, filterLanguage: String, languages: [String], startTime: Timestamp, endTime: Timestamp, maxNumberOfResults: Int)`** - Query historical alarm data
+
+### Mutations
+
+#### Authentication
+- **`login(username: String!, password: String!)`** - Login with username/password
+- **`loginSWAC(claim: String!, signedClaim: String!)`** - Login with SWAC (Single Sign-On)
+- **`extendSession`** - Extend current session expiry
+- **`logout(allSessions: Boolean)`** - Logout current or all sessions
+
+#### Tag Operations
+- **`writeTagValues(input: [TagValueInput]!, timestamp: Timestamp, quality: QualityInput)`** - Write values to tags
+
+#### Alarm Operations
+- **`acknowledgeAlarms(input: [AlarmIdentifierInput]!)`** - Acknowledge one or more alarms
+- **`resetAlarms(input: [AlarmIdentifierInput]!)`** - Reset one or more alarms
+- **`disableAlarms(names: [String]!)`** - Disable alarm instance creation
+- **`enableAlarms(names: [String]!)`** - Enable alarm instance creation
+- **`shelveAlarms(names: [String]!, shelveTimeout: Timespan)`** - Temporarily suppress alarms
+- **`unshelveAlarms(names: [String]!)`** - Remove shelving from alarms
+
+### Subscriptions
+
+#### Real-time Data
+- **`tagValues(names: [String!]!)`** - Subscribe to tag value changes
+- **`activeAlarms(systemNames: [String], filterString: String, filterLanguage: String, languages: [String])`** - Subscribe to active alarm changes
+- **`reduState`** - Subscribe to redundancy state changes
+
+### WinCCUnified JavaScript Client API
 
 #### Constructor
 ```javascript
@@ -296,19 +311,41 @@ new WinCCUnified(httpUrl, wsUrl)
 
 #### Authentication Methods
 - `login(username, password)` - Login with WinCC credentials
+- `loginSWAC(claim, signedClaim)` - Login with SWAC
 - `setToken(token)` - Set Bearer token manually
-- `dispose()` - Clean up resources and close connections
+- `getSession(allSessions)` - Get session information
+- `extendSession()` - Extend current session
+- `logout(allSessions)` - Logout current or all sessions
+- `getNonce()` - Get nonce for SWAC
+- `getIdentityProviderURL()` - Get identity provider URL
 
 #### Tag Methods
 - `getTagValues(names, directRead)` - Get current tag values
 - `getLoggedTagValues(names, startTime, endTime, maxValues, sortMode)` - Get historical data
+- `writeTagValues(input, timestamp, quality)` - Write tag values
 - `subscribeToTagValues(names, callback)` - Subscribe to real-time updates
 
 #### Browse Methods
 - `browse(options)` - Browse available tags and objects
   - `nameFilters` - Array of name patterns (supports wildcards)
   - `objectTypeFilters` - Filter by object types (TAG, LOGGINGTAG, etc.)
+  - `baseTypeFilters` - Filter by base type names
   - `language` - Response language (default: "en-US")
+
+#### Alarm Methods
+- `getActiveAlarms(options)` - Get current active alarms
+- `getLoggedAlarms(options)` - Get historical alarm data
+- `acknowledgeAlarms(input)` - Acknowledge alarms
+- `resetAlarms(input)` - Reset alarms
+- `enableAlarms(names)` - Enable alarms
+- `disableAlarms(names)` - Disable alarms
+- `shelveAlarms(names, shelveTimeout)` - Shelve alarms temporarily
+- `unshelveAlarms(names)` - Unshelve alarms
+- `subscribeToActiveAlarms(options, callback)` - Subscribe to alarm changes
+
+#### System Methods
+- `subscribeToReduState(callback)` - Subscribe to redundancy state
+- `dispose()` - Clean up resources and close connections
 
 ## Architecture
 
@@ -347,4 +384,4 @@ new WinCCUnified(httpUrl, wsUrl)
 
 ## License
 
-MIT
+GPL-3.0 License
