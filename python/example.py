@@ -81,12 +81,12 @@ async def main():
                     names=["PV-Vogler-PC::Meter_Input_WattAct:LoggingTag_1"],
                     start_time=start_time.isoformat() + "Z",
                     end_time=end_time.isoformat() + "Z",
-                    max_number_of_values=1000
+                    max_number_of_values=10
                 )
                 print(logged_values)
                 print(f"Found {len(logged_values)} logged tag results")
                 for result in logged_values:
-                    if result.get('error'):
+                    if result.get('error') and result.get['error'].get('code') != '0':
                         print(f"  - {result['name']}: ERROR - {result['error']['description']}")
 
                     values = result.get('values', [])
