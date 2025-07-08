@@ -1,17 +1,22 @@
 {
-  "name": "test-unified-graphql",
+  "name": "winccua-graphql-dashboard",
   "version": "1.0.0",
-  "description": "A JavaScript/Node.js client library for GraphQL server operations",
-  "main": "winccunified.js",
+  "description": "WinCC Unified GraphQL Dashboard with Node.js client libraries and scripting examples",
+  "main": "winccunified-node.js",
   "scripts": {
-    "start": "node server.js",
+    "start": "node dashboard.js",
+    "script": "node examples/simple-script-1.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [
+    "wincc-unified",
     "graphql",
+    "dashboard",
     "client",
     "websocket",
-    "subscription"
+    "subscription",
+    "scripting",
+    "hmi"
   ],
   "author": "Andreas Vogler",
   "license": "ISC",

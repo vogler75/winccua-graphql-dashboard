@@ -1,16 +1,18 @@
-# WinCC Unified GraphQL Client Library
+# WinCC Unified GraphQL Dashboard & Client Libraries
 
-A comprehensive JavaScript client library for WinCC Unified systems with complete GraphQL API integration. Includes authentication, tag operations, alarm management, and real-time subscriptions with an example power monitoring dashboard.
+A comprehensive JavaScript ecosystem for WinCC Unified systems with complete GraphQL API integration. Includes browser and Node.js client libraries, an interactive dashboard, and scripting examples for automation tasks.
 
 ## Features
 
 - **Complete GraphQL API**: Full WinCC Unified GraphQL schema implementation
+- **Dual Client Libraries**: Browser (HTML) and Node.js versions with shared GraphQL definitions
+- **Interactive Dashboard**: Real-time power monitoring with gauges and trend charts
+- **Scripting Framework**: Automated tag manipulation and data collection examples
 - **Authentication**: Login/logout with username/password and SWAC support
-- **Tag Operations**: Read current values, historical data, and browse tags
+- **Tag Operations**: Read current values, historical data, browse tags, and write values
 - **Alarm Management**: Query, acknowledge, reset, enable/disable, shelve/unshelve alarms
 - **Real-time Subscriptions**: Live updates for tags, alarms, and redundancy state
 - **WebSocket Support**: GraphQL subscriptions with automatic reconnection
-- **Example Dashboard**: Power monitoring dashboard with gauges and trend charts
 
 ## Installation
 
@@ -26,14 +28,20 @@ npm install
 npm start
 ```
 
-### 2. Access the Dashboard
+### 2. Run the Scripting Example
+
+```bash
+npm run script
+```
+
+### 3. Access the Dashboard
 
 Open your browser and navigate to:
 ```
 http://localhost:8080
 ```
 
-### 3. Login and Monitor
+### 4. Login and Monitor
 
 - Enter your WinCC Unified credentials
 - View real-time power gauges
@@ -69,6 +77,85 @@ Interactive trend chart showing:
 - Production vs consumption comparison
 - Manual refresh capability
 - Responsive time-series visualization
+
+## Scripting Framework
+
+### Automated Tag Oscillator
+
+The project includes a sophisticated scripting example (`examples/simple-script-1.js`) that demonstrates automated tag manipulation:
+
+```bash
+# Run the scripting example
+npm run script
+```
+
+**Features:**
+- **Authenticated GraphQL Connection**: Automatic login with WinCC Unified
+- **Configurable Tag Writing**: Oscillating values between customizable min/max ranges
+- **Session Management**: Automatic re-authentication on token expiration
+- **Error Recovery**: Robust error handling with retry logic
+- **Graceful Shutdown**: Clean resource cleanup on termination signals
+
+### Scripting Configuration
+
+Edit the configuration in `examples/simple-script-1.js`:
+
+```javascript
+const CONFIG = {
+    // GraphQL server endpoints
+    httpUrl: 'http://DESKTOP-KHLB071:4000/graphql',
+    wsUrl: 'ws://DESKTOP-KHLB071:4000/graphql',
+    
+    // Tag configuration
+    tagName: 'HMI_Tag_1',
+    minValue: 1,
+    maxValue: 1000,
+    interval: 10000, // 10 seconds
+    
+    // Authentication (required for GraphQL server)
+    username: 'username1',
+    password: 'password1'
+};
+```
+
+### Scripting Usage Examples
+
+```javascript
+// Standalone execution
+node examples/simple-script-1.js
+
+// As a module in your own scripts
+const { startTagOscillator, CONFIG } = require('./examples/simple-script-1.js');
+
+// Customize configuration
+CONFIG.tagName = 'MyCustomTag';
+CONFIG.minValue = 0;
+CONFIG.maxValue = 5000;
+
+// Start oscillator and get stop function
+const stopOscillator = await startTagOscillator();
+
+// Stop the oscillator later
+stopOscillator();
+```
+
+### AI-Generated Scripting Code
+
+**Prompt used to generate the scripting framework:**
+
+> "Create inside in the server.js a script which runs every 10 seconds and it should set the tag "HMI_Tag_1" with an increasing value from 1 to 1000 and then decreasing to 1 again and then again to 1000, in a loop. Then extract the code for this cyclic tag value write to a separate file "simple-script-1.js" and now add logon to the new script, it must logon to the graphql server first."
+
+This demonstrates how to use AI assistance to rapidly prototype automation scripts with WinCC Unified systems.
+
+## Client Libraries
+
+### Architecture Overview
+
+The project provides three main library files:
+
+- **`winccunified-graphql.js`** - Shared GraphQL definitions (queries, mutations, subscriptions)
+- **`winccunified-html.js`** - Browser-compatible client library  
+- **`winccunified-node.js`** - Node.js-compatible client library
 
 ## WinCC Unified GraphQL Client
 
@@ -241,7 +328,7 @@ reduSubscription.unsubscribe();
 ### Server Configuration
 The dashboard proxies requests to your WinCC Unified server:
 - Default target: `http://DESKTOP-KHLB071:4000`
-- Update in `server.js` line 8 for your server
+- Update in `dashboard.js` line 9 for your server
 
 ### Chart Configuration
 - **Data Points**: Last 1000 points per series
@@ -346,6 +433,30 @@ new WinCCUnified(httpUrl, wsUrl)
 #### System Methods
 - `subscribeToReduState(callback)` - Subscribe to redundancy state
 - `dispose()` - Clean up resources and close connections
+
+## Project Structure
+
+```
+winccua-graphql-dashboard/
+├── dashboard.js                 # Express server with dashboard and GraphQL proxy
+├── dashboard.html              # Interactive power monitoring dashboard
+├── examples/
+│   └── simple-script-1.js      # Automated tag oscillator example
+├── winccunified-graphql.js     # Shared GraphQL schema definitions
+├── winccunified-html.js        # Browser client library
+├── winccunified-node.js        # Node.js client library
+├── package.json                # Dependencies and npm scripts
+└── README.md                   # This documentation
+```
+
+### File Descriptions
+
+- **`dashboard.js`** - Main server file (Express + GraphQL proxy + static file serving)
+- **`dashboard.html`** - Frontend dashboard with Chart.js visualization
+- **`examples/simple-script-1.js`** - Example automation script with tag writing and authentication
+- **`winccunified-graphql.js`** - Shared GraphQL queries, mutations, and subscriptions
+- **`winccunified-html.js`** - Browser-compatible WinCC Unified client library
+- **`winccunified-node.js`** - Node.js-compatible WinCC Unified client library
 
 ## Architecture
 
