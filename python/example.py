@@ -68,6 +68,38 @@ async def main():
             except Exception as e:
                 print(f"Error getting tag values: {e}")
             
+            # Get logged tag values
+            print("\nGetting logged tag values...")
+            try:
+                from datetime import datetime, timedelta
+                
+                # Get values from the last 24 hours
+                end_time = datetime.now()
+                start_time = end_time - timedelta(hours=24)
+                
+                logged_values = await client.get_logged_tag_values(
+                    names=["PV-Vogler-PC::Meter_Input_WattAct:LoggingTag_1"],
+                    start_time=start_time.isoformat() + "Z",
+                    end_time=end_time.isoformat() + "Z",
+                    max_number_of_values=1000
+                )
+                print(logged_values)
+                print(f"Found {len(logged_values)} logged tag results")
+                for result in logged_values:
+                    if result.get('error'):
+                        print(f"  - {result['name']}: ERROR - {result['error']['description']}")
+
+                    values = result.get('values', [])
+                    print(f"  - {result['name']}: {len(values)} values")
+                    for value in values[-5:]:  # Show last 5 values
+                        timestamp = value['timestamp']
+                        val = value['value']
+                        quality = value['quality']['quality']
+                        print(f"    {timestamp}: {val} (Quality: {quality})")
+                            
+            except Exception as e:
+                print(f"Error getting logged tag values: {e}")
+            
             # Get active alarms
             print("\nGetting active alarms...")
             try:
