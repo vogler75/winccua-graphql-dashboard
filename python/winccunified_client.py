@@ -9,7 +9,6 @@ from typing import Dict, List, Optional, Callable, Any
 import threading
 import time
 
-import websockets
 import aiohttp
 from winccunified_graphql import QUERIES, MUTATIONS, SUBSCRIPTIONS
 
@@ -23,6 +22,7 @@ class GraphQLWSClient:
         self.url = url
         self.token = token
         self.websocket = None
+        self.session = None
         self.subscriptions = {}
         self.subscription_id_counter = 0
         self.connection_state = 'disconnected'  # disconnected, connecting, connected
@@ -58,17 +58,21 @@ class GraphQLWSClient:
             if self.token:
                 headers['Authorization'] = f'Bearer {self.token}'
             
-            # Connect to WebSocket
-            self.websocket = await websockets.connect(
+            # Create session if needed
+            if not self.session:
+                self.session = aiohttp.ClientSession()
+            
+            # Connect to WebSocket using aiohttp
+            self.websocket = await self.session.ws_connect(
                 self.url,
-                subprotocols=['graphql-transport-ws'],
-                extra_headers=headers
+                protocols=['graphql-transport-ws'],
+                headers=headers
             )
             
             logger.info(f"[GraphQL-WS] WebSocket connected to {self.url}")
             
             # Send connection init message
-            await self.websocket.send(json.dumps({
+            await self.websocket.send_str(json.dumps({
                 'type': 'connection_init',
                 'payload': {
                     'Authorization': f'Bearer {self.token}' if self.token else None,
@@ -97,14 +101,17 @@ class GraphQLWSClient:
         
         while time.time() - start_time < timeout:
             try:
-                message = await asyncio.wait_for(self.websocket.recv(), timeout=1.0)
-                data = json.loads(message)
-                
-                if data.get('type') == 'connection_ack':
-                    logger.info("[GraphQL-WS] Connection acknowledged")
-                    return
-                elif data.get('type') == 'connection_error':
-                    raise Exception(f"Connection error: {data.get('payload')}")
+                message = await asyncio.wait_for(self.websocket.receive(), timeout=1.0)
+                if message.type == aiohttp.WSMsgType.TEXT:
+                    data = json.loads(message.data)
+                    
+                    if data.get('type') == 'connection_ack':
+                        logger.info("[GraphQL-WS] Connection acknowledged")
+                        return
+                    elif data.get('type') == 'connection_error':
+                        raise Exception(f"Connection error: {data.get('payload')}")
+                elif message.type == aiohttp.WSMsgType.ERROR:
+                    raise Exception(f"WebSocket error: {message.data}")
                     
             except asyncio.TimeoutError:
                 continue
@@ -115,22 +122,27 @@ class GraphQLWSClient:
         """Handle incoming WebSocket messages"""
         try:
             async for message in self.websocket:
-                data = json.loads(message)
-                message_type = data.get('type')
-                
-                if message_type == 'next':
-                    await self._handle_data_message(data)
-                elif message_type == 'error':
-                    await self._handle_error_message(data)
-                elif message_type == 'complete':
-                    await self._handle_complete_message(data)
-                elif message_type == 'pong':
-                    logger.debug("[GraphQL-WS] Keep alive received")
-                else:
-                    logger.warning(f"[GraphQL-WS] Unknown message type: {message_type}")
+                if message.type == aiohttp.WSMsgType.TEXT:
+                    data = json.loads(message.data)
+                    message_type = data.get('type')
                     
-        except websockets.exceptions.ConnectionClosed:
-            logger.info("[GraphQL-WS] WebSocket connection closed")
+                    if message_type == 'next':
+                        await self._handle_data_message(data)
+                    elif message_type == 'error':
+                        await self._handle_error_message(data)
+                    elif message_type == 'complete':
+                        await self._handle_complete_message(data)
+                    elif message_type == 'pong':
+                        logger.debug("[GraphQL-WS] Keep alive received")
+                    else:
+                        logger.warning(f"[GraphQL-WS] Unknown message type: {message_type}")
+                elif message.type == aiohttp.WSMsgType.ERROR:
+                    logger.error(f"[GraphQL-WS] WebSocket error: {message.data}")
+                    break
+                elif message.type == aiohttp.WSMsgType.CLOSE:
+                    logger.info("[GraphQL-WS] WebSocket connection closed")
+                    break
+                    
         except Exception as e:
             logger.error(f"[GraphQL-WS] Message handler error: {e}")
         finally:
@@ -211,7 +223,7 @@ class GraphQLWSClient:
             }
         }
         
-        await self.websocket.send(json.dumps(start_message))
+        await self.websocket.send_str(json.dumps(start_message))
         logger.info(f"[GraphQL-WS] Subscription started: {subscription_id}")
         
         # Return subscription object
@@ -225,7 +237,7 @@ class GraphQLWSClient:
         if subscription_id in self.subscriptions:
             # Send complete message
             if self.websocket and not self.websocket.closed:
-                await self.websocket.send(json.dumps({
+                await self.websocket.send_str(json.dumps({
                     'id': subscription_id,
                     'type': 'complete'
                 }))
@@ -247,6 +259,11 @@ class GraphQLWSClient:
         if self.websocket:
             await self.websocket.close()
             self.websocket = None
+        
+        # Close session
+        if self.session:
+            await self.session.close()
+            self.session = None
         
         self.connection_state = 'disconnected'
     

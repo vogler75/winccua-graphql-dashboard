@@ -98,12 +98,13 @@ async def main():
             subscription_active = True
             
             async def on_tag_data(data):
-                if data.get('data', {}).get('tagValues'):
-                    for tag in data['data']['tagValues']:
-                        value = tag['value']['value']
-                        timestamp = tag['value']['timestamp']
-                        reason = tag.get('notificationReason', 'UPDATE')
-                        print(f"  [SUBSCRIPTION] {tag['name']}: {value} ({reason}) at {timestamp}")
+                data = data.get('data', {})
+                if data.get('tagValues'):
+                    tag = data['tagValues'] # This is not an array
+                    value = tag['value']['value']
+                    timestamp = tag['value']['timestamp']
+                    reason = tag.get('notificationReason', 'UPDATE')
+                    print(f"  [SUBSCRIPTION] {tag['name']}: {value} ({reason}) at {timestamp}")
             
             async def on_tag_error(error):
                 print(f"  [SUBSCRIPTION ERROR] {error}")
