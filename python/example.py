@@ -6,6 +6,7 @@ Demonstrates basic functionality similar to the JavaScript examples
 
 import asyncio
 import logging
+import os
 from winccunified_client import WinCCUnifiedClient
 
 # Configure logging
@@ -13,9 +14,11 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 async def main():
-    # Configuration - adjust these URLs to match your WinCC Unified server
-    HTTP_URL = "https://your-wincc-server/graphql"
-    WS_URL = "wss://your-wincc-server/graphql"
+    # Configuration - get URLs and credentials from environment variables or use defaults
+    HTTP_URL = os.getenv("GRAPHQL_HTTP_URL", "https://your-wincc-server/graphql")
+    WS_URL = os.getenv("GRAPHQL_WS_URL", "wss://your-wincc-server/graphql")
+    USERNAME = os.getenv("GRAPHQL_USERNAME", "username")
+    PASSWORD = os.getenv("GRAPHQL_PASSWORD", "password")
     
     # Initialize client
     client = WinCCUnifiedClient(HTTP_URL, WS_URL)
@@ -24,15 +27,24 @@ async def main():
         async with client:
             # Login
             print("Logging in...")
-            session = await client.login("username", "password")
+            session = await client.login(USERNAME, PASSWORD)
             print(f"Logged in as: {session['user']['name']}")
             print(f"Token expires: {session['expires']}")
             
             # Get session info
             print("\nGetting session info...")
             session_info = await client.get_session()
-            print(f"Current user: {session_info['user']['fullName']}")
             
+            if not session_info:
+                print("No session info found")
+                
+            elif isinstance(session_info, list):
+                print("All sessions info:")
+                for s_info in session_info:
+                    print(f"  - User: {s_info['user']['fullName']}, Expires: {s_info['expires']}")
+            else:
+                print("Session info:")
+           
             # Browse available objects
             print("\nBrowsing available objects...")
             objects = await client.browse()
@@ -42,7 +54,7 @@ async def main():
             
             # Get tag values
             print("\nGetting tag values...")
-            tag_names = ["Tag1", "Tag2", "Tag3"]  # Replace with actual tag names
+            tag_names = ["HMI_Tag_1", "HMI_Tag_2"]  # Replace with actual tag names
             try:
                 tags = await client.get_tag_values(tag_names)
                 for tag in tags:
@@ -70,8 +82,8 @@ async def main():
             print("\nWriting tag values...")
             try:
                 write_result = await client.write_tag_values([
-                    {"name": "Tag1", "value": "100"},
-                    {"name": "Tag2", "value": "200"}
+                    {"name": "HMI_Tag_1", "value": 100},
+                    {"name": "HMI_Tag_2", "value": 200}
                 ])
                 for result in write_result:
                     if result.get('error'):
@@ -162,8 +174,8 @@ if __name__ == "__main__":
     print("WinCC Unified Python Client Example")
     print("=" * 40)
     
-    # Note: You'll need to update the URLs and credentials above
-    print("Note: Please update the server URLs and credentials in the script before running")
+    # Note: You'll need to set environment variables or update credentials
+    print("Note: Please set GRAPHQL_HTTP_URL, GRAPHQL_WS_URL, GRAPHQL_USERNAME, and GRAPHQL_PASSWORD environment variables or update values in the script before running")
     print()
     
     asyncio.run(main())

@@ -11,7 +11,7 @@ import time
 
 import websockets
 import aiohttp
-from .winccunified_graphql import QUERIES, MUTATIONS, SUBSCRIPTIONS
+from winccunified_graphql import QUERIES, MUTATIONS, SUBSCRIPTIONS
 
 logger = logging.getLogger(__name__)
 
