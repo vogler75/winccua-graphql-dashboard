@@ -1,0 +1,4 @@
+export GRAPHQL_HTTP_URL=http://DESKTOP-KHLB071:4000/graphql
+export GRAPHQL_WS_URL=ws://DESKTOP-KHLB071:4000/graphql
+export GRAPHQL_USERNAME=username1
+export GRAPHQL_PASSWORD=password1
