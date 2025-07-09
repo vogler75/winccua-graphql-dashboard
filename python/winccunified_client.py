@@ -363,7 +363,12 @@ class WinCCUnifiedClient:
         await self.client.__aexit__(exc_type, exc_val, exc_tb)
     
     async def login(self, username: str, password: str) -> Dict:
-        """Login to WinCC Unified"""
+        """
+        Logs a user in based on their username and password.
+        Returns: Session object containing user info, token, and expiry timestamp
+        JSON Structure: { user: { id, name, groups, fullName, language, autoLogoffSec }, token: string, expires: timestamp, error?: { code, description } }
+        Errors: 101 - Incorrect credentials provided, 102 - UMC error
+        """
         result = await self.client.request(MUTATIONS['LOGIN'], {
             'username': username,
             'password': password
@@ -383,12 +388,21 @@ class WinCCUnifiedClient:
         self.client.set_token(token)
     
     async def get_session(self, all_sessions: bool = False) -> Dict:
-        """Get current session information"""
+        """
+        Returns information about the current session. If allSessions is true, returns all sessions of the current user.
+        Returns: Array of Session objects with user info, token, and expiry timestamp
+        JSON Structure: [{ user: { id, name, groups, fullName, language, autoLogoffSec }, token: string, expires: timestamp, error?: { code, description } }]
+        """
         result = await self.client.request(QUERIES['SESSION'], {'allSessions': all_sessions})
         return result.get('session')
     
     async def get_tag_values(self, names: List[str], direct_read: bool = False) -> List[Dict]:
-        """Get current tag values"""
+        """
+        Queries tag values based on the provided names list. If directRead is true, values are taken directly from PLC.
+        Returns: Array of TagValueResult objects with tag name, value, and quality information
+        JSON Structure: [{ name: string, value: { value: variant, timestamp: timestamp, quality: { quality, subStatus, limit, extendedSubStatus, sourceQuality, sourceTime, timeCorrected } }, error?: { code, description } }]
+        Errors: 2 - Cannot resolve provided name, 202 - Only leaf elements of a Structure Tag can be addressed
+        """
         result = await self.client.request(QUERIES['TAG_VALUES'], {
             'names': names,
             'directRead': direct_read
@@ -398,7 +412,13 @@ class WinCCUnifiedClient:
     async def get_logged_tag_values(self, names: List[str], start_time: Optional[str] = None,
                                    end_time: Optional[str] = None, max_number_of_values: int = 1000,
                                    sorting_mode: str = 'TIME_ASC') -> List[Dict]:
-        """Get logged tag values"""
+        """
+        Queries logged tag values from the database. Names must be LoggingTag names or Tag names (if only one logging tag exists).
+        Returns: Array of LoggedTagValuesResult objects with logging tag name, error info, and array of logged values
+        JSON Structure: [{ loggingTagName: string, error?: { code, description }, values: [{ value: { value: variant, timestamp: timestamp, quality: quality }, flags: [flag_enum] }] }]
+        Sorting modes: TIME_ASC, TIME_DESC. Bounding modes: NO_BOUNDING_VALUES, LEFT_BOUNDING_VALUES, RIGHT_BOUNDING_VALUES, LEFTRIGHT_BOUNDING_VALUES
+        Errors: 1 - Generic error, 2 - Cannot resolve provided name, 3 - Argument error
+        """
         variables = {
             'names': names,
             'maxNumberOfValues': max_number_of_values,
@@ -414,18 +434,32 @@ class WinCCUnifiedClient:
         return result.get('loggedTagValues', [])
     
     async def get_nonce(self) -> Dict:
-        """Get nonce for authentication"""
+        """
+        Returns a nonce that can be used with e.g. the UMC SWAC login method.
+        Returns: Nonce object with value and validity duration
+        JSON Structure: { value: string, validFor: number }
+        """
         result = await self.client.request(QUERIES['NONCE'])
         return result.get('nonce')
     
     async def get_identity_provider_url(self) -> str:
-        """Get identity provider URL"""
+        """
+        Returns the URL of the identity provider for UMC SWAC authentication.
+        Returns: String URL where user should be redirected for SWAC login
+        JSON Structure: string (URL)
+        """
         result = await self.client.request(QUERIES['IDENTITY_PROVIDER_URL'])
         return result.get('identityProviderURL')
     
     async def browse(self, name_filters: List[str] = None, object_type_filters: List[str] = None,
                     base_type_filters: List[str] = None, language: str = 'en-US') -> List[Dict]:
-        """Browse objects in WinCC Unified"""
+        """
+        Queries tags, elements, types, alarms, logging tags based on filter criteria. Each filter parameter supports arrays with OR relation, while parameters have AND relation.
+        Returns: Array of BrowseTagsResult objects with name, display name, object type, and data type
+        JSON Structure: [{ name: string, displayName: string, objectType: string, dataType: string }]
+        ObjectTypes: TAG, SIMPLETAG, STRUCTURETAG, TAGTYPE, STRUCTURETAGTYPE, SIMPLETAGTYPE, ALARM, ALARMCLASS, LOGGINGTAG
+        Errors: 1 - Generic error, 2 - Cannot resolve provided name, 3 - Argument error
+        """
         result = await self.client.request(QUERIES['BROWSE'], {
             'nameFilters': name_filters or [],
             'objectTypeFilters': object_type_filters or [],
@@ -436,7 +470,12 @@ class WinCCUnifiedClient:
     
     async def get_active_alarms(self, system_names: List[str] = None, filter_string: str = '',
                                filter_language: str = 'en-US', languages: List[str] = None) -> List[Dict]:
-        """Get active alarms"""
+        """
+        Query active alarms from the provided systems using ChromQueryLanguage filter.
+        Returns: Array of ActiveAlarm objects with comprehensive alarm information
+        JSON Structure: [{ name: string, instanceID: number, alarmGroupID: number, raiseTime: timestamp, acknowledgmentTime: timestamp, clearTime: timestamp, resetTime: timestamp, modificationTime: timestamp, state: AlarmState, textColor: color, backColor: color, flashing: boolean, languages: [string], alarmClassName: string, alarmClassSymbol: [string], alarmClassID: number, stateMachine: AlarmStateMachine, priority: number, alarmParameterValues: [variant], alarmType: [string], eventText: [string], infoText: [string], alarmText1-9: [string], stateText: [string], origin: string, area: string, changeReason: [AlarmChangeReason], connectionName: string, valueLimit: variant, sourceType: AlarmSourceType, suppressionState: AlarmSuppressionState, hostName: string, userName: string, value: variant, valueQuality: Quality, quality: Quality, invalidFlags: AlarmInvalidFlags, deadBand: variant, producer: AlarmProducer, duration: timespan, durationIso: timespanIso, sourceID: string, systemSeverity: number, loopInAlarm: string, loopInAlarmParameterValues: variant, path: string, userResponse: AlarmUserResponse }]
+        Errors: 301 - Syntax error in query string, 302 - Invalid language, 303 - Invalid filter language
+        """
         result = await self.client.request(QUERIES['ACTIVE_ALARMS'], {
             'systemNames': system_names or [],
             'filterString': filter_string,
@@ -449,7 +488,12 @@ class WinCCUnifiedClient:
                                filter_language: str = 'en-US', languages: List[str] = None,
                                start_time: Optional[str] = None, end_time: Optional[str] = None,
                                max_number_of_results: int = 0) -> List[Dict]:
-        """Get logged alarms"""
+        """
+        Query logged alarms from the storage system using ChromQueryLanguage filter and time boundaries.
+        Returns: Array of LoggedAlarm objects with comprehensive historical alarm information
+        JSON Structure: [{ name: string, instanceID: number, alarmGroupID: number, raiseTime: timestamp, acknowledgmentTime: timestamp, clearTime: timestamp, resetTime: timestamp, modificationTime: timestamp, state: AlarmState, textColor: color, backColor: color, languages: [string], alarmClassName: string, alarmClassSymbol: [string], alarmClassID: number, stateMachine: AlarmStateMachine, priority: number, alarmParameterValues: [variant], alarmType: [string], eventText: [string], infoText: [string], alarmText1-9: [string], stateText: [string], origin: string, area: string, changeReason: [AlarmChangeReason], valueLimit: variant, sourceType: AlarmSourceType, suppressionState: AlarmSuppressionState, hostName: string, userName: string, value: variant, valueQuality: Quality, quality: Quality, invalidFlags: AlarmInvalidFlags, deadband: variant, producer: AlarmProducer, duration: timespan, durationIso: timespanIso, hasComments: boolean }]
+        Errors: 301 - Syntax error in query string, 302 - Invalid language (or not logged), 303 - Invalid filter language (or not logged)
+        """
         variables = {
             'systemNames': system_names or [],
             'filterString': filter_string,
@@ -467,7 +511,12 @@ class WinCCUnifiedClient:
         return result.get('loggedAlarms', [])
     
     async def login_swac(self, claim: str, signed_claim: str) -> Dict:
-        """Login using SWAC authentication"""
+        """
+        Logs a user in based on the claim and signed claim from UMC SWAC authentication.
+        Returns: Session object containing user info, token, and expiry timestamp
+        JSON Structure: { user: { id, name, groups, fullName, language, autoLogoffSec }, token: string, expires: timestamp, error?: { code, description } }
+        Errors: 101 - Incorrect credentials provided, 103 - Nonce expired
+        """
         result = await self.client.request(MUTATIONS['LOGIN_SWAC'], {
             'claim': claim,
             'signedClaim': signed_claim
@@ -482,7 +531,11 @@ class WinCCUnifiedClient:
         raise Exception(f"SWAC login failed: {error_msg}")
     
     async def extend_session(self) -> Dict:
-        """Extend current session"""
+        """
+        Extends the user's current session expiry by the 'session expires' value from the identity provider (UMC).
+        Returns: Session object with updated expiry timestamp
+        JSON Structure: { user: { id, name, groups, fullName, language, autoLogoffSec }, token: string, expires: timestamp, error?: { code, description } }
+        """
         result = await self.client.request(MUTATIONS['EXTEND_SESSION'])
         
         if result.get('extendSession') and result['extendSession'].get('token'):
@@ -494,7 +547,11 @@ class WinCCUnifiedClient:
         raise Exception(f"Session extension failed: {error_msg}")
     
     async def logout(self, all_sessions: bool = False) -> bool:
-        """Logout from WinCC Unified"""
+        """
+        Logs out the current user. If allSessions is true, all sessions of the current user will be terminated.
+        Returns: Boolean indicating success
+        JSON Structure: boolean
+        """
         result = await self.client.request(MUTATIONS['LOGOUT'], {'allSessions': all_sessions})
         self.token = None
         self.client.set_token(None)
@@ -502,7 +559,12 @@ class WinCCUnifiedClient:
     
     async def write_tag_values(self, tag_values: List[Dict], timestamp: Optional[str] = None,
                               quality: Optional[Dict] = None) -> List[Dict]:
-        """Write tag values"""
+        """
+        Updates tags based on the provided TagValueInput list. Uses fallback timestamp and quality if not specified per tag.
+        Returns: Array of WriteTagValuesResult objects with tag name and error information
+        JSON Structure: [{ name: string, error?: { code, description } }]
+        Errors: 2 - Cannot resolve provided name, 201 - Cannot convert provided value to data type, 202 - Only leaf elements of a Structure Tag can be addressed
+        """
         variables = {'input': tag_values}
         if timestamp:
             variables['timestamp'] = timestamp
@@ -513,31 +575,56 @@ class WinCCUnifiedClient:
         return result.get('writeTagValues', [])
     
     async def acknowledge_alarms(self, alarm_identifiers: List[Dict]) -> List[Dict]:
-        """Acknowledge alarms"""
+        """
+        Acknowledge one or more alarms. Each alarm identifier must have the alarm name and optionally an instanceID.
+        Returns: Array of ActiveAlarmMutationResult objects with alarm name, instance ID, and error information
+        JSON Structure: [{ alarmName: string, alarmInstanceID: number, error?: { code, description } }]
+        Errors: 2 - Cannot resolve provided name, 304 - Invalid object state, 305 - Alarm cannot be acknowledged in current state
+        """
         result = await self.client.request(MUTATIONS['ACKNOWLEDGE_ALARMS'], {
             'input': alarm_identifiers
         })
         return result.get('acknowledgeAlarms', [])
     
     async def reset_alarms(self, alarm_identifiers: List[Dict]) -> List[Dict]:
-        """Reset alarms"""
+        """
+        Reset one or more alarms. Each alarm identifier must have the alarm name and optionally an instanceID.
+        Returns: Array of ActiveAlarmMutationResult objects with alarm name, instance ID, and error information
+        JSON Structure: [{ alarmName: string, alarmInstanceID: number, error?: { code, description } }]
+        Errors: 2 - Cannot resolve provided name, 304 - Invalid object state, 305 - Alarm cannot be reset in current state
+        """
         result = await self.client.request(MUTATIONS['RESET_ALARMS'], {
             'input': alarm_identifiers
         })
         return result.get('resetAlarms', [])
     
     async def disable_alarms(self, names: List[str]) -> List[Dict]:
-        """Disable alarms"""
+        """
+        Disable the creation of new alarm instances for one or more alarms.
+        Returns: Array of AlarmMutationResult objects with alarm name and error information
+        JSON Structure: [{ alarmName: string, error?: { code, description } }]
+        Errors: 2 - Cannot resolve provided name
+        """
         result = await self.client.request(MUTATIONS['DISABLE_ALARMS'], {'names': names})
         return result.get('disableAlarms', [])
     
     async def enable_alarms(self, names: List[str]) -> List[Dict]:
-        """Enable alarms"""
+        """
+        Enable the creation of new alarm instances for one or more alarms.
+        Returns: Array of AlarmMutationResult objects with alarm name and error information
+        JSON Structure: [{ alarmName: string, error?: { code, description } }]
+        Errors: 2 - Cannot resolve provided name
+        """
         result = await self.client.request(MUTATIONS['ENABLE_ALARMS'], {'names': names})
         return result.get('enableAlarms', [])
     
     async def shelve_alarms(self, names: List[str], shelve_timeout: Optional[str] = None) -> List[Dict]:
-        """Shelve alarms"""
+        """
+        Shelve all active alarm instances of the provided configured alarms. Uses runtime's configured shelving timeout if not specified.
+        Returns: Array of AlarmMutationResult objects with alarm name and error information
+        JSON Structure: [{ alarmName: string, error?: { code, description } }]
+        Errors: 2 - Cannot resolve provided name
+        """
         variables = {'names': names}
         if shelve_timeout:
             variables['shelveTimeout'] = shelve_timeout
@@ -546,13 +633,23 @@ class WinCCUnifiedClient:
         return result.get('shelveAlarms', [])
     
     async def unshelve_alarms(self, names: List[str]) -> List[Dict]:
-        """Unshelve alarms"""
+        """
+        Revert the Shelve action for the provided configured alarms. Unshelving causes a notification for all concerned alarm instances.
+        Returns: Array of AlarmMutationResult objects with alarm name and error information
+        JSON Structure: [{ alarmName: string, error?: { code, description } }]
+        Errors: 2 - Cannot resolve provided name
+        """
         result = await self.client.request(MUTATIONS['UNSHELVE_ALARMS'], {'names': names})
         return result.get('unshelveAlarms', [])
     
     async def subscribe_to_tag_values(self, names: List[str], on_data: Callable = None,
                                      on_error: Callable = None, on_complete: Callable = None):
-        """Subscribe to tag value changes"""
+        """
+        Subscribes to tag values for the tags based on the provided names list. Notifications contain reason (Added, Modified, Removed, Removed (Name changed)).
+        Returns: Subscription object with unsubscribe method
+        Callback receives: TagValueNotification object { name: string, value: { value: variant, timestamp: timestamp, quality: Quality }, error?: { code, description }, notificationReason: string }
+        Errors: 2 - Cannot resolve provided name, 202 - Only leaf elements of a Structure Tag can be addressed
+        """
         callbacks = {}
         if on_data:
             callbacks['on_data'] = on_data
@@ -571,7 +668,12 @@ class WinCCUnifiedClient:
                                         filter_language: str = 'en-US', languages: List[str] = None,
                                         on_data: Callable = None, on_error: Callable = None,
                                         on_complete: Callable = None):
-        """Subscribe to active alarm changes"""
+        """
+        Subscribe for active alarms matching the given filters. Notifications contain reason (Added, Modified, Removed).
+        Returns: Subscription object with unsubscribe method
+        Callback receives: ActiveAlarmNotification object with all ActiveAlarm fields plus notificationReason: string
+        Errors: 301 - Syntax error in query string, 302 - Invalid language, 303 - Invalid filter language
+        """
         callbacks = {}
         if on_data:
             callbacks['on_data'] = on_data
@@ -593,7 +695,11 @@ class WinCCUnifiedClient:
     
     async def subscribe_to_redu_state(self, on_data: Callable = None, on_error: Callable = None,
                                      on_complete: Callable = None):
-        """Subscribe to redundancy state changes"""
+        """
+        Subscribes to redu state. Notifications contain information about the active/passive state of the system on state changes.
+        Returns: Subscription object with unsubscribe method
+        Callback receives: ReduStateNotification object { value: { value: ReduState (ACTIVE | PASSIVE), timestamp: timestamp }, notificationReason: string }
+        """
         callbacks = {}
         if on_data:
             callbacks['on_data'] = on_data
