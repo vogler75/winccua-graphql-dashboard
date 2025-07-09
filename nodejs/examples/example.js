@@ -1,163 +1,270 @@
-// Scripting Test - HMI Tag Oscillator
-// Demonstrates tag writing using WinCC Unified Node.js library
+#!/usr/bin/env node
+
+/**
+ * Example usage of WinCC Unified Node.js Client Library
+ * Demonstrates basic functionality similar to the Python examples
+ */
 
 const { WinCCUnifiedNode } = require('../winccunified-node.js');
 
-// Configuration
+// Configuration - get URLs and credentials from environment variables or use defaults
 const CONFIG = {
-    // GraphQL server endpoints
-    httpUrl: 'http://DESKTOP-KHLB071:4000/graphql',
-    wsUrl: 'ws://DESKTOP-KHLB071:4000/graphql',
-    
-    // Tag configuration
-    tagName: 'HMI_Tag_1',
-    minValue: 1,
-    maxValue: 1000,
-    interval: 10000, // 10 seconds
-    
-    // Authentication (required for GraphQL server)
-    username: 'username1',
-    password: 'password1'
+    HTTP_URL: process.env.GRAPHQL_HTTP_URL || 'http://your-wincc-server:4000/graphql',
+    WS_URL: process.env.GRAPHQL_WS_URL || 'ws://your-wincc-server:4000/graphql',
+    USERNAME: process.env.GRAPHQL_USERNAME || 'username',
+    PASSWORD: process.env.GRAPHQL_PASSWORD || 'password'
 };
 
-// HMI Tag Oscillator using WinCC Unified Node.js library
-async function startTagOscillator() {
-    let currentValue = CONFIG.minValue;
-    let direction = 1; // 1 for increasing, -1 for decreasing
+// Utility function to wait for a specified amount of time
+function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+async function main() {
+    console.log('WinCC Unified Node.js Client Example');
+    console.log('=' .repeat(40));
+    console.log('Note: Please set GRAPHQL_HTTP_URL, GRAPHQL_WS_URL, GRAPHQL_USERNAME, and GRAPHQL_PASSWORD environment variables or update values in the script before running');
+    console.log();
+
+    // Initialize client
+    const client = new WinCCUnifiedNode(CONFIG.HTTP_URL, CONFIG.WS_URL);
     
-    // Create WinCC Unified client
-    const client = new WinCCUnifiedNode(CONFIG.httpUrl, CONFIG.wsUrl);
-    
-    // Login to GraphQL server
     try {
-        console.log('🔐 Authenticating with GraphQL server...');
-        const session = await client.login(CONFIG.username, CONFIG.password);
-        console.log(`✅ Authentication successful - User: ${session.user?.name || CONFIG.username}`);
-        console.log(`🎫 Session token expires: ${session.expires || 'Unknown'}`);
-    } catch (error) {
-        console.error('❌ Authentication failed:', error.message);
-        throw error;
-    }
-    
-    const updateTag = async () => {
+        // Login
+        console.log('Logging in...');
+        const session = await client.login(CONFIG.USERNAME, CONFIG.PASSWORD);
+        console.log(`Logged in as: ${session.user?.name || CONFIG.USERNAME}`);
+        console.log(`Token expires: ${session.expires || 'Unknown'}`);
+        
+        // Get session info
+        console.log('\nGetting session info...');
+        const sessionInfo = await client.getSession();
+        
+        if (!sessionInfo || sessionInfo.length === 0) {
+            console.log('No session info found');
+        } else if (Array.isArray(sessionInfo)) {
+            console.log('All sessions info:');
+            for (const sInfo of sessionInfo) {
+                console.log(`  - User: ${sInfo.user?.fullName || sInfo.user?.name || 'Unknown'}, Expires: ${sInfo.expires || 'Unknown'}`);
+            }
+        } else {
+            console.log('Session info:', sessionInfo);
+        }
+        
+        // Browse available objects
+        console.log('\nBrowsing available objects...');
+        const objects = await client.browse();
+        console.log(`Found ${objects.length} objects`);
+        for (const obj of objects.slice(0, 5)) { // Show first 5 objects
+            console.log(`  - ${obj.name} (${obj.objectType})`);
+        }
+        
+        // Get tag values
+        console.log('\nGetting tag values...');
+        const tagNames = ['HMI_Tag_1', 'HMI_Tag_2']; // Replace with actual tag names
         try {
-            // Use the writeTagValues method from the library
-            const result = await client.writeTagValues([
-                {
-                    name: CONFIG.tagName,
-                    value: currentValue
+            const tags = await client.getTagValues(tagNames);
+            for (const tag of tags) {
+                if (tag.error && tag.error.code !== '0') {
+                    console.log(`  - ${tag.name}: ERROR - ${tag.error.description}`);
+                } else {
+                    const value = tag.value?.value;
+                    const timestamp = tag.value?.timestamp;
+                    const quality = tag.value?.quality?.quality;
+                    console.log(`  - ${tag.name}: ${value} (Quality: ${quality}, Time: ${timestamp})`);
                 }
-            ]);
-            
-            if (result && result[0]?.error) {
-                console.error(`[${new Date().toISOString()}] ${CONFIG.tagName} write error:`, result[0].error.description);
-                
-                // Check if it's an authentication error and try to re-login
-                if (result[0].error.code === 'UNAUTHORIZED' || result[0].error.description.includes('authentication')) {
-                    console.log('🔄 Re-authenticating due to authentication error...');
-                    try {
-                        await client.login(CONFIG.username, CONFIG.password);
-                        console.log('✅ Re-authentication successful');
-                    } catch (loginError) {
-                        console.error('❌ Re-authentication failed:', loginError.message);
-                    }
-                }
-            } else {
-                console.log(`[${new Date().toISOString()}] ${CONFIG.tagName} updated to: ${currentValue}`);
             }
         } catch (error) {
-            console.error(`[${new Date().toISOString()}] Error updating ${CONFIG.tagName}:`, error.message);
+            console.log(`Error getting tag values: ${error.message}`);
+        }
+        
+        // Get logged tag values
+        console.log('\nGetting logged tag values...');
+        try {
+            // Get values from the last 24 hours
+            const endTime = new Date();
+            const startTime = new Date(endTime.getTime() - 24 * 60 * 60 * 1000);
             
-            // Check if it's an authentication error and try to re-login
-            if (error.message.includes('authentication') || error.message.includes('unauthorized')) {
-                console.log('🔄 Re-authenticating due to connection error...');
-                try {
-                    await client.login(CONFIG.username, CONFIG.password);
-                    console.log('✅ Re-authentication successful');
-                } catch (loginError) {
-                    console.error('❌ Re-authentication failed:', loginError.message);
+            const loggedValues = await client.getLoggedTagValues(
+                ['PV-Vogler-PC::Meter_Input_WattAct:LoggingTag_1'],
+                startTime.toISOString(),
+                endTime.toISOString(),
+                10
+            );
+            
+            console.log(`Found ${loggedValues.length} logged tag results`);
+            for (const result of loggedValues) {
+                if (result.error && result.error.code !== '0') {
+                    console.log(`  - ${result.loggingTagName}: ERROR - ${result.error.description}`);
+                } else {
+                    const values = result.values || [];
+                    console.log(`  - ${result.loggingTagName}: ${values.length} values`);
+                    for (const value of values.slice(-5)) { // Show last 5 values
+                        const timestamp = value.value?.timestamp;
+                        const val = value.value?.value;
+                        const quality = value.value?.quality?.quality;
+                        console.log(`    ${timestamp}: ${val} (Quality: ${quality})`);
+                    }
                 }
             }
+        } catch (error) {
+            console.log(`Error getting logged tag values: ${error.message}`);
         }
         
-        // Update value for next iteration
-        currentValue += direction;
-        
-        // Change direction at boundaries
-        if (currentValue >= CONFIG.maxValue) {
-            direction = -1;
-        } else if (currentValue <= CONFIG.minValue) {
-            direction = 1;
+        // Get active alarms
+        console.log('\nGetting active alarms...');
+        try {
+            const alarms = await client.getActiveAlarms();
+            console.log(`Found ${alarms.length} active alarms`);
+            for (const alarm of alarms.slice(0, 3)) { // Show first 3 alarms
+                const eventText = Array.isArray(alarm.eventText) ? alarm.eventText.join(', ') : alarm.eventText;
+                console.log(`  - ${alarm.name}: ${eventText} (Priority: ${alarm.priority})`);
+            }
+        } catch (error) {
+            console.log(`Error getting alarms: ${error.message}`);
         }
-    };
-    
-    // Run every configured interval
-    const intervalId = setInterval(updateTag, CONFIG.interval);
-    
-    // Run immediately on start
-    updateTag();
-    
-    console.log(`🔄 ${CONFIG.tagName} oscillator started (${CONFIG.minValue}-${CONFIG.maxValue} every ${CONFIG.interval/1000} seconds)`);
-    
-    // Return function to stop the oscillator
-    return () => {
-        clearInterval(intervalId);
-        client.dispose();
-        console.log(`🛑 ${CONFIG.tagName} oscillator stopped`);
-    };
+        
+        // Example of writing tag values
+        console.log('\nWriting tag values...');
+        try {
+            const writeResult = await client.writeTagValues([
+                { name: 'HMI_Tag_1', value: 100 },
+                { name: 'HMI_Tag_2', value: 200 }
+            ]);
+            
+            for (const result of writeResult) {
+                if (result.error) {
+                    console.log(`  - ${result.name}: ERROR - ${result.error.description}`);
+                } else {
+                    console.log(`  - ${result.name}: Written successfully`);
+                }
+            }
+        } catch (error) {
+            console.log(`Error writing tag values: ${error.message}`);
+        }
+        
+        // Set up subscription for tag values
+        console.log('\nSetting up tag value subscription...');
+        let tagSubscription = null;
+        
+        try {
+            const onTagData = (data) => {
+                const value = data.value?.value;
+                const timestamp = data.value?.timestamp;
+                const reason = data.notificationReason || 'UPDATE';
+                console.log(`  [SUBSCRIPTION] ${data.name}: ${value} (${reason}) at ${timestamp}`);
+            };
+            
+            const onTagError = (error) => {
+                console.log(`  [SUBSCRIPTION ERROR] ${error.message || error}`);
+            };
+            
+            const onTagComplete = () => {
+                console.log('  [SUBSCRIPTION] Tag subscription completed');
+            };
+            
+            tagSubscription = await client.subscribeToTagValues(
+                tagNames,
+                onTagData,
+                onTagError,
+                onTagComplete
+            );
+            
+            console.log('Tag subscription active. Waiting for updates...');
+            
+            // Keep subscription active for 30 seconds
+            await sleep(30000);
+            
+            // Unsubscribe
+            console.log('Unsubscribing from tag values...');
+            if (tagSubscription && tagSubscription.unsubscribe) {
+                tagSubscription.unsubscribe();
+            }
+            
+        } catch (error) {
+            console.log(`Error setting up subscription: ${error.message}`);
+        }
+        
+        // Set up subscription for active alarms
+        console.log('\nSetting up alarm subscription...');
+        let alarmSubscription = null;
+        
+        try {
+            const onAlarmData = (data) => {
+                const alarmData = data.data;
+                if (alarmData?.activeAlarms) {
+                    const alarms = Array.isArray(alarmData.activeAlarms) ? alarmData.activeAlarms : [alarmData.activeAlarms];
+                    for (const alarm of alarms) {
+                        const reason = alarm.notificationReason || 'UPDATE';
+                        const eventText = Array.isArray(alarm.eventText) ? alarm.eventText.join(', ') : alarm.eventText;
+                        console.log(`  [ALARM] ${alarm.name}: ${eventText} (${reason})`);
+                    }
+                }
+            };
+            
+            const onAlarmError = (error) => {
+                console.log(`  [ALARM ERROR] ${error.message || error}`);
+            };
+            
+            const onAlarmComplete = () => {
+                console.log('  [ALARM] Alarm subscription completed');
+            };
+            
+            alarmSubscription = await client.subscribeToActiveAlarms(
+                onAlarmData,
+                onAlarmError,
+                onAlarmComplete
+            );
+            
+            console.log('Alarm subscription active. Waiting for updates...');
+            
+            // Keep subscription active for 30 seconds
+            await sleep(30000);
+            
+            // Unsubscribe
+            console.log('Unsubscribing from alarms...');
+            if (alarmSubscription && alarmSubscription.unsubscribe) {
+                alarmSubscription.unsubscribe();
+            }
+            
+        } catch (error) {
+            console.log(`Error setting up alarm subscription: ${error.message}`);
+        }
+        
+        // Logout
+        console.log('\nLogging out...');
+        await client.logout();
+        console.log('Logged out successfully');
+        
+    } catch (error) {
+        console.error(`Error: ${error.message}`);
+        console.error('Stack trace:', error.stack);
+    } finally {
+        // Cleanup
+        if (client.dispose) {
+            client.dispose();
+        }
+    }
 }
 
 // Graceful shutdown handling
 const gracefulShutdown = (signal) => {
-    console.log(`\n🛑 Received ${signal}, shutting down gracefully...`);
-    if (stopOscillator) {
-        stopOscillator();
-    }
+    console.log(`\nReceived ${signal}, shutting down gracefully...`);
     process.exit(0);
 };
 
-// Global reference to stop function
-let stopOscillator = null;
-
-// Main execution
-async function main() {
-    try {
-        console.log('='.repeat(60));
-        console.log('🚀 HMI Tag Oscillator Test Started');
-        console.log('='.repeat(60));
-        console.log(`📊 Target Server: ${CONFIG.httpUrl}`);
-        console.log(`🏷️  Tag Name: ${CONFIG.tagName}`);
-        console.log(`📈 Value Range: ${CONFIG.minValue} - ${CONFIG.maxValue}`);
-        console.log(`⏱️  Interval: ${CONFIG.interval/1000} seconds`);
-        console.log('='.repeat(60));
-        
-        // Start the oscillator (includes authentication)
-        stopOscillator = await startTagOscillator();
-        
-    } catch (error) {
-        console.error('❌ Failed to start oscillator:', error.message);
-        process.exit(1);
-    }
-}
-
 // Handle shutdown signals
-process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
-process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+process.on('SIGTERM', gracefulShutdown);
+process.on('SIGINT', gracefulShutdown);
 
 // Handle uncaught exceptions
 process.on('uncaughtException', (error) => {
-    console.error(`[${new Date().toISOString()}] Uncaught Exception:`, error);
-    if (stopOscillator) {
-        stopOscillator();
-    }
+    console.error(`Uncaught Exception:`, error);
     process.exit(1);
 });
 
 process.on('unhandledRejection', (reason, promise) => {
-    console.error(`[${new Date().toISOString()}] Unhandled Rejection at:`, promise, 'reason:', reason);
-    if (stopOscillator) {
-        stopOscillator();
-    }
+    console.error(`Unhandled Rejection at:`, promise, 'reason:', reason);
     process.exit(1);
 });
 
@@ -168,6 +275,6 @@ if (require.main === module) {
 
 // Export for use in other modules
 module.exports = {
-    startTagOscillator,
+    main,
     CONFIG
 };

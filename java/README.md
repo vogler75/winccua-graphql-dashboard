@@ -223,4 +223,4 @@ Thread.startVirtualThread(() -> {
 
 ## License
 
-This library follows the same license as the parent project.
+GPL-3.0 License

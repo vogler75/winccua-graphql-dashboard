@@ -166,4 +166,4 @@ subscription = await client.subscribe_to_tag_values(
 
 ## License
 
-ISC License - see LICENSE file for details.
+GPL-3.0 License

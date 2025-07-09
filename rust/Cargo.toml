@@ -1,0 +1,23 @@
+[package]
+name = "winccua-graphql-client"
+version = "1.0.0"
+edition = "2021"
+description = "Rust client for WinCC Unified GraphQL API"
+authors = ["Andreas Vogler"]
+license = "GPL-3.0"
+
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+reqwest = { version = "0.11", features = ["json", "blocking"] }
+chrono = "0.4"
+thiserror = "1.0"
+
+
+[lib]
+name = "winccua_graphql_client"
+path = "src/lib.rs"
+
+[[example]]
+name = "basic_usage"
+path = "examples/basic_usage.rs"
