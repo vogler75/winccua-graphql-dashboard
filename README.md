@@ -4,7 +4,7 @@ Multi-language GraphQL client libraries for WinCC Unified servers, providing com
 
 ## Overview
 
-This repository contains client libraries for connecting to WinCC Unified GraphQL servers in JavaScript/Node.js, Python, Java, Rust, and Dart/Flutter environments. The libraries provide full API coverage including authentication, tag operations, alarm management, and real-time subscriptions.
+This repository contains client libraries for connecting to WinCC Unified GraphQL servers in JavaScript/Node.js, Python, Java, Rust, and Dart environments. The libraries provide full API coverage including authentication, tag operations, alarm management, and real-time subscriptions.
 
 ## Implementations
 
@@ -57,17 +57,17 @@ This repository contains client libraries for connecting to WinCC Unified GraphQ
 - Integration tests for reliability
 - Minimal dependencies for embedded scenarios
 
-### Dart/Flutter (`dart/`)
-- **Pure Dart Client**: Platform-independent Dart library
-- **Flutter App**: Complete monitoring application with UI
-- **Cross-Platform**: Runs on iOS, Android, Web, and Desktop
+### Dart (`dart/`)
+- **Pure Dart Client**: Platform-independent Dart library for console and server applications
+- **Cross-Platform**: Works on any platform that supports Dart
+- **Flutter Example**: Includes a complete Flutter monitoring app with UI
 
 **Features:**
-- Material Design UI with real-time dashboards
-- Gauge widgets and trend charts
-- Alert monitoring and management
-- WebSocket subscriptions for live updates
-- State management with Provider pattern
+- Full GraphQL API support with queries, mutations, and subscriptions
+- WebSocket support for real-time updates
+- Strong type safety with Dart's type system
+- Comprehensive error handling
+- Example applications for both console (Dart) and mobile/desktop (Flutter)
 
 ## Getting Started
 
@@ -104,8 +104,13 @@ cargo build --release
 cargo run --example basic_usage
 ```
 
-### Dart/Flutter
+### Dart
 ```bash
+cd dart/example-dart/
+dart pub get
+dart run example.dart  # Run console example
+
+# For Flutter example:
 cd dart/example-flutter/
 flutter pub get
 flutter run  # Run on connected device/emulator
