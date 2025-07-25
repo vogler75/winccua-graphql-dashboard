@@ -44,10 +44,7 @@ wincc_client_t* wincc_client_new(const char* base_url, const char* username, con
     client->username = strdup(username);
     client->password = strdup(password);
     
-    char graphql_url[1024];
-    snprintf(graphql_url, sizeof(graphql_url), "%s/graphql", base_url);
-    
-    client->graphql_client = graphql_client_new(graphql_url);
+    client->graphql_client = graphql_client_new(base_url);
     if (!client->graphql_client) {
         wincc_client_free(client);
         return NULL;

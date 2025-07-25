@@ -13,12 +13,12 @@ void signal_handler(int signum) {
 int main(int argc, char* argv[]) {
     signal(SIGINT, signal_handler);
     
-    const char* base_url = getenv("WINCCUA_URL");
-    const char* username = getenv("WINCCUA_USERNAME");
-    const char* password = getenv("WINCCUA_PASSWORD");
+    const char* base_url = getenv("GRAPHQL_HTTP_URL");
+    const char* username = getenv("GRAPHQL_USERNAME");
+    const char* password = getenv("GRAPHQL_PASSWORD");
     
     if (!base_url || !username || !password) {
-        fprintf(stderr, "Please set WINCCUA_URL, WINCCUA_USERNAME, and WINCCUA_PASSWORD environment variables\n");
+        fprintf(stderr, "Please set GRAPHQL_HTTP_URL, GRAPHQL_USERNAME, and GRAPHQL_PASSWORD environment variables\n");
         return 1;
     }
     
@@ -39,12 +39,10 @@ int main(int argc, char* argv[]) {
     printf("Connected! Monitoring tags (press Ctrl+C to stop)...\n\n");
     
     const char* tags[] = {
-        "Silo1_Temperature",
-        "Silo1_Pressure",
-        "Silo1_Level",
-        "Silo2_Temperature",
-        "Silo2_Pressure",
-        "Silo2_Level"
+        "HMI_Tag_1",
+        "HMI_Tag_2",
+        "Meter_Input_Value",
+        "Meter_Output_Value"
     };
     const size_t tag_count = sizeof(tags) / sizeof(tags[0]);
     

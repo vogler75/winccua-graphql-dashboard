@@ -4,12 +4,12 @@
 #include "../include/wincc_unified.h"
 
 int main(int argc, char* argv[]) {
-    const char* base_url = getenv("WINCCUA_URL");
-    const char* username = getenv("WINCCUA_USERNAME");
-    const char* password = getenv("WINCCUA_PASSWORD");
+    const char* base_url = getenv("GRAPHQL_HTTP_URL");
+    const char* username = getenv("GRAPHQL_USERNAME");
+    const char* password = getenv("GRAPHQL_PASSWORD");
     
     if (!base_url || !username || !password) {
-        fprintf(stderr, "Please set WINCCUA_URL, WINCCUA_USERNAME, and WINCCUA_PASSWORD environment variables\n");
+        fprintf(stderr, "Please set GRAPHQL_HTTP_URL, GRAPHQL_USERNAME, and GRAPHQL_PASSWORD environment variables\n");
         fprintf(stderr, "You can source the setenv.sh script to set these variables\n");
         return 1;
     }
@@ -33,7 +33,7 @@ int main(int argc, char* argv[]) {
     printf("Connected successfully!\n\n");
     
     printf("=== Reading Tags ===\n");
-    const char* tag_names[] = {"Silo1_Temperature", "Silo1_Pressure", "InvalidTag"};
+    const char* tag_names[] = {"Meter_Input_Value", "Meter_Output_Value", "HMI_Tag_1"};
     wincc_tag_results_t* tag_results = wincc_read_tags(client, tag_names, 3);
     
     if (tag_results) {
@@ -50,8 +50,8 @@ int main(int argc, char* argv[]) {
     
     printf("\n=== Writing Tags ===\n");
     wincc_tag_write_t tags_to_write[] = {
-        {"Silo1_Temperature", "25.5"},
-        {"Silo1_Pressure", "1.2"}
+        {"HMI_Tag_1", "25.5"},
+        {"HMI_Tag_2", "1.2"}
     };
     
     wincc_write_results_t* write_results = wincc_write_tags(client, tags_to_write, 2);
