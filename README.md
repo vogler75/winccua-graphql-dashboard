@@ -4,7 +4,7 @@ Multi-language GraphQL client libraries for WinCC Unified servers, providing com
 
 ## Overview
 
-This repository contains client libraries for connecting to WinCC Unified GraphQL servers in JavaScript/Node.js, Python, Java, Rust, and Dart environments. The libraries provide full API coverage including authentication, tag operations, alarm management, and real-time subscriptions.
+This repository contains client libraries for connecting to WinCC Unified GraphQL servers in JavaScript/Node.js, Python, Java, Rust, Go, C, and Dart environments. The libraries provide full API coverage including authentication, tag operations, alarm management, and real-time subscriptions.
 
 ## Implementations
 
@@ -57,6 +57,35 @@ This repository contains client libraries for connecting to WinCC Unified GraphQ
 - Integration tests for reliability
 - Minimal dependencies for embedded scenarios
 
+### Go (`go/`)
+- **Full-Featured Client**: Complete GraphQL client with HTTP and WebSocket support
+- **Context-Aware**: All operations support Go context for proper cancellation
+- **Real-time Subscriptions**: WebSocket support for tags, alarms, and redundancy state
+- **Thread-Safe**: Designed for concurrent operations across goroutines
+
+**Features:**
+- Go 1.21+ with modern language features
+- Context-aware operations with proper cancellation
+- Real-time WebSocket subscriptions for all data types
+- Thread-safe design for concurrent access
+- Comprehensive error handling with detailed error information
+- Automatic session management and token refresh
+- Historical data access and redundancy monitoring
+
+### C (`c/`)
+- **Native C Library**: Pure C implementation with minimal dependencies
+- **HTTP-only**: Focused on queries and mutations using libcurl
+- **Memory Safe**: Proper memory management with cleanup functions
+- **Cross-Platform**: Works on Linux, macOS, and Windows
+
+**Features:**
+- C11 standard with libcurl and cJSON dependencies
+- Thread-safe design for multi-threaded applications
+- Complete memory management with proper cleanup
+- Tag operations, browsing, and alarm management
+- Authentication and session management
+- Static library with simple C API
+
 ### Dart (`dart/`)
 - **Pure Dart Client**: Platform-independent Dart library for console and server applications
 - **Cross-Platform**: Works on any platform that supports Dart
@@ -102,6 +131,20 @@ mvn exec:java  # Run example
 cd rust/
 cargo build --release
 cargo run --example basic_usage
+```
+
+### Go
+```bash
+cd go/
+go mod tidy
+go run cmd/examples/basic_usage.go
+```
+
+### C
+```bash
+cd c/
+make
+./bin/basic_usage
 ```
 
 ### Dart
