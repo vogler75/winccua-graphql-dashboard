@@ -130,9 +130,19 @@ async def main():
             subscription_active = True
             
             async def on_tag_data(data):
-                data = data.get('data', {})
-                if data.get('tagValues'):
-                    tag = data['tagValues'] # This is not an array
+                # Handle case where data might be passed as string
+                if isinstance(data, str):
+                    print(f"  [SUBSCRIPTION] Received string data: {data}")
+                    return
+                
+                # Ensure data is a dictionary before accessing it
+                if not isinstance(data, dict):
+                    print(f"  [SUBSCRIPTION] Unexpected data type: {type(data)}")
+                    return
+                    
+                tag_data = data.get('data', {})
+                if tag_data.get('tagValues'):
+                    tag = tag_data['tagValues'] # This is not an array
                     value = tag['value']['value']
                     timestamp = tag['value']['timestamp']
                     reason = tag.get('notificationReason', 'UPDATE')
@@ -168,10 +178,19 @@ async def main():
             print("\nSetting up alarm subscription...")
             
             async def on_alarm_data(data):
-                if data.get('data', {}).get('activeAlarms'):
-                    for alarm in data['data']['activeAlarms']:
-                        reason = alarm.get('notificationReason', 'UPDATE')
-                        print(f"  [ALARM] {alarm['name']}: {alarm['eventText']} ({reason})")
+                # Handle case where data might be passed as string
+                if isinstance(data, str):
+                    print(f"  [ALARM] Received string data: {data}")
+                    return
+                    
+                # Check if data has the expected structure
+                if isinstance(data, dict) and data.get('data', {}).get('activeAlarms'):
+                    alarm = data['data']['activeAlarms']
+                    reason = alarm.get('notificationReason', 'UPDATE')
+                    state = alarm.get('state', 'UNKNOWN')
+                    alarm_texts = alarm.get('eventText', [''])
+                    alarm_text = alarm_texts[0] if alarm_texts else ''
+                    print(f"  [ALARM] {alarm['name']}: {alarm_text} - State: {state} ({reason})")
             
             async def on_alarm_error(error):
                 print(f"  [ALARM ERROR] {error}")

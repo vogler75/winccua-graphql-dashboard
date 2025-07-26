@@ -158,9 +158,13 @@ class GraphQLWSClient:
             callback = self.subscriptions[subscription_id].get('on_data')
             if callback:
                 try:
+                    logger.debug(f"[GraphQL-WS] Subscription payload type: {type(payload)}")
+                    logger.debug(f"[GraphQL-WS] Subscription payload content: {payload}")
                     await callback(payload)
                 except Exception as e:
                     logger.error(f"Error in subscription callback: {e}")
+                    logger.error(f"Payload type: {type(payload)}")
+                    logger.error(f"Payload content: {payload}")
     
     async def _handle_error_message(self, message: Dict):
         """Handle error messages from subscriptions"""
@@ -270,8 +274,8 @@ class GraphQLWSClient:
     def update_token(self, token: str):
         """Update authentication token"""
         self.token = token
-        # If connected, need to reconnect with new token
-        if self.connection_state == 'connected':
+        # If connected and token is not None, need to reconnect with new token
+        if self.connection_state == 'connected' and token is not None:
             logger.info("[GraphQL-WS] Token updated, reconnecting...")
             asyncio.create_task(self._reconnect_with_new_token())
     
@@ -552,6 +556,10 @@ class WinCCUnifiedClient:
         Returns: Boolean indicating success
         JSON Structure: boolean
         """
+        # First disconnect WebSocket client if exists
+        if self.client.ws_client:
+            await self.client.ws_client.disconnect()
+        
         result = await self.client.request(MUTATIONS['LOGOUT'], {'allSessions': all_sessions})
         self.token = None
         self.client.set_token(None)
