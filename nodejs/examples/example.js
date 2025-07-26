@@ -155,25 +155,16 @@ async function main() {
                 console.log(`  [SUBSCRIPTION] ${data.name}: ${value} (${reason}) at ${timestamp}`);
             };
             
-            const onTagError = (error) => {
-                console.log(`  [SUBSCRIPTION ERROR] ${error.message || error}`);
-            };
-            
-            const onTagComplete = () => {
-                console.log('  [SUBSCRIPTION] Tag subscription completed');
-            };
             
             tagSubscription = await client.subscribeToTagValues(
                 tagNames,
-                onTagData,
-                onTagError,
-                onTagComplete
+                onTagData
             );
             
             console.log('Tag subscription active. Waiting for updates...');
             
-            // Keep subscription active for 30 seconds
-            await sleep(30000);
+            // Keep subscription active for 10 seconds
+            await sleep(1000);
             
             // Unsubscribe
             console.log('Unsubscribing from tag values...');
@@ -190,30 +181,15 @@ async function main() {
         let alarmSubscription = null;
         
         try {
-            const onAlarmData = (data) => {
-                const alarmData = data.data;
-                if (alarmData?.activeAlarms) {
-                    const alarms = Array.isArray(alarmData.activeAlarms) ? alarmData.activeAlarms : [alarmData.activeAlarms];
-                    for (const alarm of alarms) {
-                        const reason = alarm.notificationReason || 'UPDATE';
-                        const eventText = Array.isArray(alarm.eventText) ? alarm.eventText.join(', ') : alarm.eventText;
-                        console.log(`  [ALARM] ${alarm.name}: ${eventText} (${reason})`);
-                    }
-                }
-            };
-            
-            const onAlarmError = (error) => {
-                console.log(`  [ALARM ERROR] ${error.message || error}`);
-            };
-            
-            const onAlarmComplete = () => {
-                console.log('  [ALARM] Alarm subscription completed');
-            };
+            const onAlarmData = (alarm) => {
+                const reason = alarm.notificationReason || 'UPDATE';
+                const eventText = Array.isArray(alarm.eventText) ? alarm.eventText.join(', ') : alarm.eventText;
+                console.log(`  [ALARM] ${alarm.name}: ${eventText} (${reason})`);                
+            };                        
             
             alarmSubscription = await client.subscribeToActiveAlarms(
-                onAlarmData,
-                onAlarmError,
-                onAlarmComplete
+                {},
+                onAlarmData
             );
             
             console.log('Alarm subscription active. Waiting for updates...');
