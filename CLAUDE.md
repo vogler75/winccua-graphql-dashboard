@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is a multi-language GraphQL client library collection for WinCC Unified industrial automation systems. The project provides comprehensive API access for SCADA operations across JavaScript/Node.js, Python, Java, and Rust implementations.
+This is a multi-language GraphQL client library collection for WinCC Unified industrial automation systems. The project provides comprehensive API access for SCADA operations across JavaScript/Node.js, Python, Java, Rust, and Go implementations.
 
 ## Development Commands
 
@@ -43,6 +43,14 @@ cargo build                   # Build debug version
 cargo build --release         # Build optimized release
 cargo test                    # Run tests
 cargo run --example basic_usage  # Run basic usage example
+```
+
+### Go (`go/`)
+```bash
+go mod tidy                   # Download dependencies
+go build ./...                # Build all packages
+go run examples/basic_usage/main.go   # Run basic usage example
+go run examples/subscriptions/main.go # Run subscription example
 ```
 
 ## Architecture Overview
@@ -99,6 +107,7 @@ All implementations use consistent error structure: `{ code: string, description
 - **Java**: Test framework configured but limited test coverage
 - **Node.js**: Test framework not implemented (`npm test` fails)
 - **Python**: No test framework currently configured
+- **Go**: Test framework not implemented yet
 
 ## Language-Specific Notes
 
@@ -121,6 +130,13 @@ All implementations use consistent error structure: `{ code: string, description
 - Synchronous-only design for simplicity
 - Strong type safety with comprehensive error handling
 - No WebSocket subscriptions (intentionally removed)
+
+### Go
+- Clean, idiomatic Go design with strong typing
+- HTTP GraphQL client with comprehensive API support
+- WebSocket subscriptions (⚠️ currently experiencing frame corruption issues)
+- Synchronous API with proper error handling
+- HTTP polling workaround available for real-time data
 
 ## Industrial Automation Context
 This codebase is specifically designed for industrial automation scenarios with:

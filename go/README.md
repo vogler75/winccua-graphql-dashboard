@@ -4,12 +4,25 @@ A comprehensive Go client library for the WinCC Unified GraphQL API, providing s
 
 ## Features
 
-- **HTTP GraphQL Client** - Synchronous queries and mutations
-- **WebSocket GraphQL Client** - Real-time subscriptions with concurrent callbacks
-- **Authentication Management** - Bearer token-based session handling
-- **Comprehensive API Coverage** - All WinCC Unified operations supported
-- **Strong Type Safety** - Complete type definitions for all API responses
-- **Industrial-Grade Error Handling** - Proper error propagation and quality indicators
+- **HTTP GraphQL Client** - Synchronous queries and mutations ✅
+- **WebSocket GraphQL Client** - Real-time subscriptions ⚠️ (Known Issues - See Below)
+- **Authentication Management** - Bearer token-based session handling ✅
+- **Comprehensive API Coverage** - All WinCC Unified operations supported ✅
+- **Strong Type Safety** - Complete type definitions for all API responses ✅
+- **Industrial-Grade Error Handling** - Proper error propagation and quality indicators ✅
+
+## Known Issues
+
+### WebSocket Subscriptions
+⚠️ **WebSocket subscriptions are currently not working properly** due to frame corruption issues with the gorilla/websocket library when connecting to WinCC Unified servers. 
+
+**Symptoms:**
+- `websocket: RSV2 set, RSV3 set, bad opcode` errors
+- Connection failures during subscription setup
+
+**Status:** Under investigation. The HTTP GraphQL client works perfectly for all queries, mutations, and polling-based solutions.
+
+**Workaround:** Use HTTP GraphQL polling instead of WebSocket subscriptions for real-time data until this issue is resolved.
 
 ## Installation
 
@@ -58,61 +71,51 @@ func main() {
 }
 ```
 
-### WebSocket Subscriptions
+### WebSocket Subscriptions (⚠️ Currently Not Working)
+
+**Note: WebSocket subscriptions are currently experiencing issues. Use HTTP polling as a workaround.**
 
 ```go
+// Example of HTTP polling as workaround for real-time data
 package main
 
 import (
-    "encoding/json"
     "fmt"
     "log"
     "time"
     "winccua-graphql-client/pkg/client"
-    "winccua-graphql-client/pkg/graphql"
 )
 
 func main() {
-    // Create client with WebSocket support
-    c := client.NewClientWithWebSocket(
-        "http://your-wincc-server:4000/graphql",
-        "ws://your-wincc-server:4000/graphql",
-    )
+    // Create HTTP client
+    c := client.NewClient("http://your-wincc-server:4000/graphql")
     
-    // Login and get token
-    session, err := c.Login("username", "password")
+    // Login
+    _, err := c.Login("username", "password")
     if err != nil {
         log.Fatal(err)
     }
     
-    // Connect WebSocket
-    err = c.ConnectWebSocket(*session.Token)
-    if err != nil {
-        log.Fatal(err)
+    // Poll tag values every 2 seconds (workaround for subscriptions)
+    ticker := time.NewTicker(2 * time.Second)
+    defer ticker.Stop()
+    
+    tagNames := []string{"HMI_Tag_1", "HMI_Tag_2"}
+    
+    for range ticker.C {
+        tagValues, err := c.GetTagValuesSimple(tagNames)
+        if err != nil {
+            log.Printf("Error reading tags: %v", err)
+            continue
+        }
+        
+        for _, tag := range tagValues {
+            if tag.Value != nil {
+                fmt.Printf("Tag %s = %v at %s\n", 
+                    *tag.Name, tag.Value.Value, *tag.Value.Timestamp)
+            }
+        }
     }
-    defer c.DisconnectWebSocket()
-    
-    // Subscribe to tag values
-    callbacks := graphql.SubscriptionCallbacks{
-        OnData: func(data json.RawMessage) {
-            // Handle tag value updates
-            fmt.Printf("Tag update: %s\n", string(data))
-        },
-        OnError: func(err error) {
-            log.Printf("Subscription error: %v", err)
-        },
-    }
-    
-    sub, err := c.SubscribeToTagValues([]string{"HMI_Tag_1"}, callbacks)
-    if err != nil {
-        log.Fatal(err)
-    }
-    
-    // Listen for updates
-    time.Sleep(30 * time.Second)
-    
-    // Stop subscription
-    sub.Stop()
 }
 ```
 

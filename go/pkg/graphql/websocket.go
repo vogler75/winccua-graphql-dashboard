@@ -3,8 +3,10 @@ package graphql
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"sync"
@@ -107,6 +109,13 @@ func (c *WebSocketClient) Connect() error {
 		HandshakeTimeout:  10 * time.Second,
 		EnableCompression: false, // Disable compression to avoid RSV bit issues
 		Proxy:             http.ProxyFromEnvironment,
+		// Add more strict checking to avoid frame corruption
+		ReadBufferSize:    4096,
+		WriteBufferSize:   4096,
+		// Skip TLS verification for development/testing
+		TLSClientConfig: &tls.Config{
+			InsecureSkipVerify: true,
+		},
 	}
 
 	header := http.Header{}
@@ -324,36 +333,54 @@ func (c *WebSocketClient) handleMessages() {
 			// Set read deadline to prevent indefinite blocking
 			c.conn.SetReadDeadline(time.Now().Add(30 * time.Second))
 			
-			// Read the raw message first to debug frame issues
-			messageType, data, err := c.conn.ReadMessage()
+			// Try to read with more robust error handling
+			var msg WebSocketMessage
+			err := func() error {
+				// Use a more defensive approach to reading
+				messageType, reader, err := c.conn.NextReader()
+				if err != nil {
+					return err
+				}
+				
+				log.Printf("DEBUG: NextReader returned messageType: %d", messageType)
+				
+				// Only process text messages
+				if messageType != websocket.TextMessage {
+					log.Printf("DEBUG: Ignoring non-text message type: %d", messageType)
+					return nil // Skip this message
+				}
+				
+				// Read the data from the reader
+				data, err := io.ReadAll(reader)
+				if err != nil {
+					return fmt.Errorf("failed to read message data: %w", err)
+				}
+				
+				log.Printf("DEBUG: Received message data: %s", string(data))
+				
+				// Parse JSON
+				if err := json.Unmarshal(data, &msg); err != nil {
+					return fmt.Errorf("failed to unmarshal JSON: %w", err)
+				}
+				
+				return nil
+			}()
+			
 			if err != nil {
-				if websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway) {
-					log.Printf("DEBUG: WebSocket closed normally: %v", err)
+				if websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
+					log.Printf("DEBUG: WebSocket closed: %v", err)
 				} else {
 					log.Printf("DEBUG: WebSocket read error: %v", err)
 				}
 				return
 			}
-
-			log.Printf("DEBUG: Received raw message: Type=%d, Length=%d, Data=%s", 
-				messageType, len(data), string(data))
-
-			// Only process text messages
-			if messageType != websocket.TextMessage {
-				log.Printf("DEBUG: Ignoring non-text message type: %d", messageType)
-				continue
+			
+			// If we successfully read a message, handle it
+			if msg.Type != "" {
+				log.Printf("DEBUG: Parsed WebSocket message: Type=%s, ID=%s, Payload=%s", 
+					msg.Type, msg.ID, string(msg.Payload))
+				c.handleMessage(msg)
 			}
-
-			var msg WebSocketMessage
-			if err := json.Unmarshal(data, &msg); err != nil {
-				log.Printf("DEBUG: Failed to unmarshal WebSocket message: %v, Data: %s", err, string(data))
-				continue
-			}
-
-			log.Printf("DEBUG: Parsed WebSocket message: Type=%s, ID=%s, Payload=%s", 
-				msg.Type, msg.ID, string(msg.Payload))
-
-			c.handleMessage(msg)
 		}
 	}
 }
