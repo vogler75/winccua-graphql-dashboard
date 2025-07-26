@@ -257,6 +257,20 @@ public class GraphQLWSClient {
             webSocket = null;
         }
         
+        // Shutdown the OkHttp client for WebSocket
+        httpClient.dispatcher().executorService().shutdown();
+        try {
+            if (!httpClient.dispatcher().executorService().awaitTermination(2, TimeUnit.SECONDS)) {
+                httpClient.dispatcher().executorService().shutdownNow();
+            }
+        } catch (InterruptedException e) {
+            httpClient.dispatcher().executorService().shutdownNow();
+            Thread.currentThread().interrupt();
+        }
+        
+        // Evict all connections
+        httpClient.connectionPool().evictAll();
+        
         connectionFuture = null;
     }
     

@@ -88,7 +88,7 @@ mvn clean compile
 ## Running the Example
 
 ```bash
-mvn exec:java
+mvn exec:java -Dexec.mainClass="com.siemens.wincc.unified.example.Example"
 ```
 
 ## Architecture

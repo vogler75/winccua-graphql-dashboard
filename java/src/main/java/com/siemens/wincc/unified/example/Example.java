@@ -269,5 +269,8 @@ public class Example {
             System.err.println("Error: " + e.getMessage());
             logger.error("Application error", e);
         }
+        
+        // Force exit to prevent lingering threads
+        System.exit(0);
     }
 }

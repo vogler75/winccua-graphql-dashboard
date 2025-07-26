@@ -12,6 +12,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -27,6 +28,7 @@ public class GraphQLClient implements AutoCloseable {
     private final ObjectMapper objectMapper;
     private String token;
     private GraphQLWSClient wsClient;
+    private static final Map<OkHttpClient, Boolean> activeClients = new ConcurrentHashMap<>();
     
     public GraphQLClient(String httpUrl, String wsUrl) {
         this.httpUrl = httpUrl;
@@ -37,6 +39,17 @@ public class GraphQLClient implements AutoCloseable {
             .writeTimeout(30, TimeUnit.SECONDS)
             .build();
         this.objectMapper = new ObjectMapper();
+        
+        // Track this client for cleanup
+        activeClients.put(httpClient, true);
+        
+        // Install shutdown hook for the first client
+        if (activeClients.size() == 1) {
+            Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+                logger.info("Shutdown hook executing - forcing OkHttp cleanup");
+                shutdownAllClients();
+            }));
+        }
     }
     
     public void setToken(String token) {
@@ -126,11 +139,63 @@ public class GraphQLClient implements AutoCloseable {
         return wsClient.subscribe(query, variables, callbacks);
     }
     
+    private static void shutdownAllClients() {
+        for (OkHttpClient client : activeClients.keySet()) {
+            try {
+                client.connectionPool().evictAll();
+                client.dispatcher().cancelAll();
+                client.dispatcher().executorService().shutdown();
+                if (!client.dispatcher().executorService().awaitTermination(1, TimeUnit.SECONDS)) {
+                    client.dispatcher().executorService().shutdownNow();
+                }
+                if (client.cache() != null) {
+                    client.cache().close();
+                }
+            } catch (Exception e) {
+                // Ignore errors during shutdown
+            }
+        }
+        activeClients.clear();
+    }
+    
     @Override
     public void close() {
         if (wsClient != null) {
             wsClient.disconnect();
+            wsClient = null;
         }
+        
+        // Remove from active clients
+        activeClients.remove(httpClient);
+        
+        // Close all connections first
+        httpClient.connectionPool().evictAll();
+        
+        // Cancel all calls
+        httpClient.dispatcher().cancelAll();
+        
+        // Shutdown the executor service
         httpClient.dispatcher().executorService().shutdown();
+        try {
+            if (!httpClient.dispatcher().executorService().awaitTermination(3, TimeUnit.SECONDS)) {
+                httpClient.dispatcher().executorService().shutdownNow();
+                // Wait a bit more for forced shutdown
+                if (!httpClient.dispatcher().executorService().awaitTermination(2, TimeUnit.SECONDS)) {
+                    logger.warn("HTTP client executor did not terminate");
+                }
+            }
+        } catch (InterruptedException e) {
+            httpClient.dispatcher().executorService().shutdownNow();
+            Thread.currentThread().interrupt();
+        }
+        
+        // Force cache cleanup
+        if (httpClient.cache() != null) {
+            try {
+                httpClient.cache().close();
+            } catch (IOException e) {
+                logger.warn("Error closing cache", e);
+            }
+        }
     }
 }
