@@ -207,7 +207,7 @@ public class Example {
                 System.out.println("Tag subscription active. Waiting for updates...");
                 
                 // Keep subscription active for 30 seconds
-                Thread.sleep(30_000);
+                Thread.sleep(1_000);
                 
                 // Unsubscribe
                 System.out.println("Unsubscribing from tag values...");
@@ -224,8 +224,11 @@ public class Example {
             SubscriptionCallbacks alarmCallbacks = SubscriptionCallbacks.of(
                 data -> {
                     @SuppressWarnings("unchecked")
-                    Map<String, Object> activeAlarms = (Map<String, Object>) data.get("activeAlarms");
+                    Map<String, Object> dataMap = (Map<String, Object>) data.get("data");
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> activeAlarms = (Map<String, Object>) dataMap.get("activeAlarms");
                     if (activeAlarms != null) {
+                        logger.info("DATA2");
                         String reason = (String) activeAlarms.getOrDefault("notificationReason", "UPDATE");
                         @SuppressWarnings("unchecked")
                         List<String> eventTexts = (List<String>) activeAlarms.get("eventText");

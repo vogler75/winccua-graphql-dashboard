@@ -267,6 +267,7 @@ public class GraphQLWSClient {
     private void handleDataMessage(JsonNode message) {
         String subscriptionId = message.get("id").asText();
         JsonNode payload = message.get("payload");
+        logger.debug("[GraphQL-WS] Data received for subscription {}: {}", subscriptionId, payload);
         
         SubscriptionCallbacks callbacks = subscriptions.get(subscriptionId);
         if (callbacks != null && callbacks.onData() != null) {

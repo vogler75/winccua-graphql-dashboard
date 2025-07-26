@@ -1,6 +1,6 @@
 # WinCC Unified GraphQL Java Client
 
-A Java 21+ client library for WinCC Unified GraphQL API with synchronous HTTP requests and WebSocket subscription support.
+A Java 17+ client library for WinCC Unified GraphQL API with synchronous HTTP requests and WebSocket subscription support.
 
 ## Features
 
@@ -14,7 +14,7 @@ A Java 21+ client library for WinCC Unified GraphQL API with synchronous HTTP re
 
 ## Requirements
 
-- Java 21 or higher
+- Java 17 or higher
 - Maven 3.6+
 - WinCC Unified server with GraphQL API enabled
 
@@ -208,10 +208,11 @@ CompletableFuture<List<Map<String, Object>>> future =
     });
 ```
 
-Or use virtual threads (Java 21+):
+Or use a thread pool:
 
 ```java
-Thread.startVirtualThread(() -> {
+ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor();
+executor.submit(() -> {
     try {
         List<Map<String, Object>> tags = client.getTagValues(tagNames);
         // Process tags
