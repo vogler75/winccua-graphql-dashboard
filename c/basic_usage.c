@@ -40,7 +40,7 @@ int main(int argc, char* argv[]) {
     if (tag_results) {
         for (size_t i = 0; i < tag_results->count; i++) {
             wincc_tag_result_t* tag = &tag_results->items[i];
-            if (tag->error && tag->error->error_code && strcmp(tag->error->error_code, "0") != 0) {
+            if (tag->error) {
                 printf("Tag: %s - Error: %s\n", tag->name, tag->error->description);
             } else {
                 printf("Tag: %s = %s (Quality: %s)\n", tag->name, tag->value, tag->quality);
@@ -59,7 +59,7 @@ int main(int argc, char* argv[]) {
     if (write_results) {
         for (size_t i = 0; i < write_results->count; i++) {
             wincc_write_result_t* result = &write_results->items[i];
-            if (result->error && result->error->error_code && strcmp(result->error->error_code, "0") != 0) {
+            if (result->error) {
                 printf("Write failed for %s: %s\n", result->name, result->error->description);
             } else {
                 printf("Successfully wrote to %s\n", result->name);

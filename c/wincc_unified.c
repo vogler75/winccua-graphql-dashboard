@@ -59,7 +59,6 @@ wincc_error_t* wincc_connect(wincc_client_t* client) {
                              "login(username: $username, password: $password) { "
                              "token expires user { name } error { code description } } }";
     
-    // Build variables object using cJSON
     cJSON* variables_obj = cJSON_CreateObject();
     cJSON_AddStringToObject(variables_obj, "username", client->username);
     cJSON_AddStringToObject(variables_obj, "password", client->password);
@@ -110,7 +109,8 @@ wincc_error_t* wincc_connect(wincc_client_t* client) {
     
     cJSON* error_obj = cJSON_GetObjectItem(login, "error");
     
-    if (error_obj && (!cJSON_GetObjectItem(error_obj, "code") || strcmp(cJSON_GetObjectItem(error_obj, "code")->valuestring, "0") != 0)) {
+    if (error_obj) {
+        printf("[DEBUG] wincc_connect: Login error detected\n");
         wincc_error_t* error = malloc(sizeof(wincc_error_t));
         cJSON* code = cJSON_GetObjectItem(error_obj, "code");
         cJSON* desc = cJSON_GetObjectItem(error_obj, "description");
@@ -166,7 +166,6 @@ wincc_tag_results_t* wincc_read_tags(wincc_client_t* client, const char** tag_na
     
     printf("[DEBUG] wincc_read_tags: Reading %zu tags\n", count);
     
-    // Build names array using cJSON
     cJSON* names_array = cJSON_CreateArray();
     for (size_t i = 0; i < count; i++) {
         printf("[DEBUG] wincc_read_tags: Tag[%zu]: %s\n", i, tag_names[i]);
@@ -174,7 +173,6 @@ wincc_tag_results_t* wincc_read_tags(wincc_client_t* client, const char** tag_na
         cJSON_AddItemToArray(names_array, name_item);
     }
     
-    // Build variables object using cJSON
     cJSON* variables_obj = cJSON_CreateObject();
     cJSON_AddItemToObject(variables_obj, "names", names_array);
     
@@ -278,7 +276,6 @@ wincc_write_results_t* wincc_write_tags(wincc_client_t* client, const wincc_tag_
     
     printf("[DEBUG] wincc_write_tags: Writing %zu tags\n", count);
     
-    // Build input array using cJSON
     cJSON* input_array = cJSON_CreateArray();
     for (size_t i = 0; i < count; i++) {
         printf("[DEBUG] wincc_write_tags: Tag[%zu]: %s = %s\n", i, tags[i].name, tags[i].value);
@@ -289,7 +286,6 @@ wincc_write_results_t* wincc_write_tags(wincc_client_t* client, const wincc_tag_
         cJSON_AddItemToArray(input_array, tag_obj);
     }
     
-    // Build variables object using cJSON
     cJSON* variables_obj = cJSON_CreateObject();
     cJSON_AddItemToObject(variables_obj, "input", input_array);
     
@@ -361,7 +357,6 @@ wincc_browse_results_t* wincc_browse(wincc_client_t* client, const char* path) {
                        "browse(nameFilters: $nameFilters) { "
                        "name displayName objectType dataType } }";
     
-    // Build variables object using cJSON
     cJSON* variables_obj = cJSON_CreateObject();
     cJSON* name_filters = cJSON_CreateArray();
     
@@ -378,7 +373,6 @@ wincc_browse_results_t* wincc_browse(wincc_client_t* client, const char* path) {
     printf("[DEBUG] wincc_browse: Variables: %s\n", variables);
     
     graphql_response_t* response = graphql_execute(client->graphql_client, query, variables);
-    
     free(variables);
     
     if (!response) {
@@ -515,7 +509,6 @@ wincc_error_t* wincc_acknowledge_alarm(wincc_client_t* client, const char* alarm
                        "acknowledgeAlarms(input: $input) { "
                        "alarmName alarmInstanceID error { code description } } }";
     
-    // Build variables object using cJSON
     cJSON* variables_obj = cJSON_CreateObject();
     cJSON* input_array = cJSON_CreateArray();
     cJSON* alarm_obj = cJSON_CreateObject();
@@ -541,7 +534,6 @@ wincc_error_t* wincc_acknowledge_alarm(wincc_client_t* client, const char* alarm
     cJSON_Delete(variables_obj);
     
     graphql_response_t* response = graphql_execute(client->graphql_client, query, variables);
-    
     free(variables);
     
     if (!response) {
