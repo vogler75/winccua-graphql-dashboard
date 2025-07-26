@@ -113,7 +113,7 @@ All implementations use consistent error structure: `{ code: string, description
 - Type hints for better IDE support
 
 ### Java
-- Requires Java 21+
+- Requires Java 17+
 - Synchronous blocking API with thread-safe design
 - OkHttp for transport, Jackson for JSON handling
 

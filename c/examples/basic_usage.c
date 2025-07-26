@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <string.h>
 #include "../include/wincc_unified.h"
 
 int main(int argc, char* argv[]) {
@@ -23,7 +24,7 @@ int main(int argc, char* argv[]) {
     
     printf("Connecting to server...\n");
     wincc_error_t* error = wincc_connect(client);
-    if (error) {
+    if (error && error->error_code && strcmp(error->error_code, "0") != 0) {
         fprintf(stderr, "Connection failed: %s - %s\n", error->error_code, error->description);
         wincc_error_free(error);
         wincc_client_free(client);

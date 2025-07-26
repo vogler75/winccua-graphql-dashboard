@@ -73,9 +73,12 @@ void wincc_client_free(wincc_client_t* client) {
 wincc_error_t* wincc_connect(wincc_client_t* client) {
     if (!client) return NULL;
     
+    printf("[DEBUG] wincc_connect: Starting connection to %s\n", client->base_url);
+    printf("[DEBUG] wincc_connect: Username: %s\n", client->username);
+    
     const char* login_query = "mutation Login($username: String!, $password: String!) { "
-                             "Login(user: $username, password: $password) { "
-                             "token sessionId error { code description } } }";
+                             "login(username: $username, password: $password) { "
+                             "token expires user { name } error { code description } } }";
     
     char variables[512];
     char* escaped_user = escape_json_string(client->username);
@@ -85,32 +88,52 @@ wincc_error_t* wincc_connect(wincc_client_t* client) {
              "{\"username\":\"%s\",\"password\":\"%s\"}", 
              escaped_user, escaped_pass);
     
+    printf("[DEBUG] wincc_connect: Query: %s\n", login_query);
+    printf("[DEBUG] wincc_connect: Variables: %s\n", variables);
+    
     free(escaped_user);
     free(escaped_pass);
     
+    printf("[DEBUG] wincc_connect: Executing GraphQL query...\n");
     graphql_response_t* response = graphql_execute(client->graphql_client, login_query, variables);
     if (!response) {
+        printf("[DEBUG] wincc_connect: No response received from server\n");
         wincc_error_t* error = malloc(sizeof(wincc_error_t));
         error->error_code = strdup("CONNECTION_ERROR");
         error->description = strdup("Failed to connect to server");
         return error;
     }
     
+    printf("[DEBUG] wincc_connect: Response received, length: %zu\n", strlen(response->json_string));
+    printf("[DEBUG] wincc_connect: Response: %s\n", response->json_string);
+    
     cJSON* json = cJSON_Parse(response->json_string);
     graphql_response_free(response);
     
     if (!json) {
+        printf("[DEBUG] wincc_connect: Failed to parse JSON response\n");
         wincc_error_t* error = malloc(sizeof(wincc_error_t));
         error->error_code = strdup("PARSE_ERROR");
         error->description = strdup("Invalid JSON response");
         return error;
     }
     
+    printf("[DEBUG] wincc_connect: JSON parsed successfully\n");
+    
     cJSON* data = cJSON_GetObjectItem(json, "data");
-    cJSON* login = cJSON_GetObjectItem(data, "Login");
+    if (!data) {
+        printf("[DEBUG] wincc_connect: No 'data' field in response\n");
+    }
+    
+    cJSON* login = cJSON_GetObjectItem(data, "login");
+    if (!login) {
+        printf("[DEBUG] wincc_connect: No 'login' field in data\n");
+    }
+    
     cJSON* error_obj = cJSON_GetObjectItem(login, "error");
     
     if (error_obj) {
+        printf("[DEBUG] wincc_connect: Login error detected\n");
         wincc_error_t* error = malloc(sizeof(wincc_error_t));
         cJSON* code = cJSON_GetObjectItem(error_obj, "code");
         cJSON* desc = cJSON_GetObjectItem(error_obj, "description");
@@ -118,37 +141,39 @@ wincc_error_t* wincc_connect(wincc_client_t* client) {
         error->error_code = strdup(code ? code->valuestring : "UNKNOWN_ERROR");
         error->description = strdup(desc ? desc->valuestring : "Unknown error");
         
+        printf("[DEBUG] wincc_connect: Error code: %s, description: %s\n", error->error_code, error->description);
+        
         cJSON_Delete(json);
         return error;
     }
     
     cJSON* token = cJSON_GetObjectItem(login, "token");
-    cJSON* session_id = cJSON_GetObjectItem(login, "sessionId");
     
-    if (token && session_id) {
+    if (token) {
+        printf("[DEBUG] wincc_connect: Token received: %s\n", token->valuestring);
         client->token = strdup(token->valuestring);
-        client->session_id = strdup(session_id->valuestring);
+        // Session ID is not returned in the new API, use token as session identifier
+        client->session_id = strdup(client->token);
         
         char auth_header[1024];
         snprintf(auth_header, sizeof(auth_header), "Bearer %s", client->token);
+        printf("[DEBUG] wincc_connect: Setting authorization header\n");
         graphql_client_set_header(client->graphql_client, "Authorization", auth_header);
+    } else {
+        printf("[DEBUG] wincc_connect: No token in login response\n");
     }
     
     cJSON_Delete(json);
+    printf("[DEBUG] wincc_connect: Connection successful\n");
     return NULL;
 }
 
 void wincc_disconnect(wincc_client_t* client) {
-    if (!client || !client->session_id) return;
+    if (!client || !client->token) return;
     
-    const char* logout_query = "mutation Logout($sessionId: ID!) { "
-                              "Logout(sessionId: $sessionId) { "
-                              "error { code description } } }";
+    const char* logout_query = "mutation { logout(allSessions: false) }";
     
-    char variables[256];
-    snprintf(variables, sizeof(variables), "{\"sessionId\":\"%s\"}", client->session_id);
-    
-    graphql_response_t* response = graphql_execute(client->graphql_client, logout_query, variables);
+    graphql_response_t* response = graphql_execute(client->graphql_client, logout_query, NULL);
     if (response) {
         graphql_response_free(response);
     }
@@ -162,10 +187,13 @@ void wincc_disconnect(wincc_client_t* client) {
 wincc_tag_results_t* wincc_read_tags(wincc_client_t* client, const char** tag_names, size_t count) {
     if (!client || !tag_names || count == 0) return NULL;
     
+    printf("[DEBUG] wincc_read_tags: Reading %zu tags\n", count);
+    
     char* tags_array = malloc(count * 256);
     strcpy(tags_array, "[");
     
     for (size_t i = 0; i < count; i++) {
+        printf("[DEBUG] wincc_read_tags: Tag[%zu]: %s\n", i, tag_names[i]);
         char* escaped = escape_json_string(tag_names[i]);
         strcat(tags_array, "\\\"");
         strcat(tags_array, escaped);
@@ -175,29 +203,47 @@ wincc_tag_results_t* wincc_read_tags(wincc_client_t* client, const char** tag_na
     }
     strcat(tags_array, "]");
     
-    const char* query = "query ReadTags($tags: [String!]!) { "
-                       "ReadTags(tags: $tags) { "
-                       "name value quality timestamp error { code description } } }";
+    const char* query = "query TagValues($names: [String!]!) { "
+                       "tagValues(names: $names) { "
+                       "name value { value timestamp quality { quality subStatus } } error { code description } } }";
     
     char* variables = malloc(strlen(tags_array) + 32);
-    sprintf(variables, "{\"tags\":%s}", tags_array);
+    sprintf(variables, "{\"names\":%s}", tags_array);
+    
+    printf("[DEBUG] wincc_read_tags: Query: %s\n", query);
+    printf("[DEBUG] wincc_read_tags: Variables: %s\n", variables);
     
     graphql_response_t* response = graphql_execute(client->graphql_client, query, variables);
     
     free(tags_array);
     free(variables);
     
-    if (!response) return NULL;
+    if (!response) {
+        printf("[DEBUG] wincc_read_tags: No response received\n");
+        return NULL;
+    }
+    
+    printf("[DEBUG] wincc_read_tags: Response: %s\n", response->json_string);
     
     cJSON* json = cJSON_Parse(response->json_string);
     graphql_response_free(response);
     
-    if (!json) return NULL;
+    if (!json) {
+        printf("[DEBUG] wincc_read_tags: Failed to parse JSON\n");
+        return NULL;
+    }
     
     wincc_tag_results_t* results = calloc(1, sizeof(wincc_tag_results_t));
     
     cJSON* data = cJSON_GetObjectItem(json, "data");
-    cJSON* read_tags = cJSON_GetObjectItem(data, "ReadTags");
+    if (!data) {
+        printf("[DEBUG] wincc_read_tags: No 'data' field in response\n");
+    }
+    
+    cJSON* read_tags = cJSON_GetObjectItem(data, "tagValues");
+    if (!read_tags) {
+        printf("[DEBUG] wincc_read_tags: No 'tagValues' field in data\n");
+    }
     
     if (read_tags) {
         results->count = cJSON_GetArraySize(read_tags);
@@ -208,15 +254,35 @@ wincc_tag_results_t* wincc_read_tags(wincc_client_t* client, const char** tag_na
             wincc_tag_result_t* result = &results->items[i];
             
             cJSON* name = cJSON_GetObjectItem(item, "name");
-            cJSON* value = cJSON_GetObjectItem(item, "value");
-            cJSON* quality = cJSON_GetObjectItem(item, "quality");
-            cJSON* timestamp = cJSON_GetObjectItem(item, "timestamp");
+            cJSON* value_obj = cJSON_GetObjectItem(item, "value");
             cJSON* error = cJSON_GetObjectItem(item, "error");
             
             if (name) result->name = strdup(name->valuestring);
-            if (value) result->value = strdup(value->valuestring);
-            if (quality) result->quality = strdup(quality->valuestring);
-            if (timestamp) result->timestamp = strdup(timestamp->valuestring);
+            
+            if (value_obj) {
+                cJSON* value = cJSON_GetObjectItem(value_obj, "value");
+                cJSON* timestamp = cJSON_GetObjectItem(value_obj, "timestamp");
+                cJSON* quality_obj = cJSON_GetObjectItem(value_obj, "quality");
+                
+                if (value) {
+                    if (cJSON_IsString(value)) {
+                        result->value = strdup(value->valuestring);
+                    } else if (cJSON_IsNumber(value)) {
+                        char buffer[64];
+                        snprintf(buffer, sizeof(buffer), "%g", value->valuedouble);
+                        result->value = strdup(buffer);
+                    } else if (cJSON_IsBool(value)) {
+                        result->value = strdup(cJSON_IsTrue(value) ? "true" : "false");
+                    }
+                }
+                
+                if (timestamp) result->timestamp = strdup(timestamp->valuestring);
+                
+                if (quality_obj) {
+                    cJSON* quality = cJSON_GetObjectItem(quality_obj, "quality");
+                    if (quality) result->quality = strdup(quality->valuestring);
+                }
+            }
             
             if (error) {
                 result->error = malloc(sizeof(wincc_error_t));
@@ -236,10 +302,13 @@ wincc_tag_results_t* wincc_read_tags(wincc_client_t* client, const char** tag_na
 wincc_write_results_t* wincc_write_tags(wincc_client_t* client, const wincc_tag_write_t* tags, size_t count) {
     if (!client || !tags || count == 0) return NULL;
     
+    printf("[DEBUG] wincc_write_tags: Writing %zu tags\n", count);
+    
     char* tags_array = malloc(count * 512);
     strcpy(tags_array, "[");
     
     for (size_t i = 0; i < count; i++) {
+        printf("[DEBUG] wincc_write_tags: Tag[%zu]: %s = %s\n", i, tags[i].name, tags[i].value);
         char* escaped_name = escape_json_string(tags[i].name);
         char* escaped_value = escape_json_string(tags[i].value);
         
@@ -255,19 +324,27 @@ wincc_write_results_t* wincc_write_tags(wincc_client_t* client, const wincc_tag_
     }
     strcat(tags_array, "]");
     
-    const char* query = "mutation WriteTags($tags: [TagInput!]!) { "
-                       "WriteTags(tags: $tags) { "
+    const char* query = "mutation WriteTagValues($input: [TagValueInput]!) { "
+                       "writeTagValues(input: $input) { "
                        "name error { code description } } }";
     
     char* variables = malloc(strlen(tags_array) + 32);
-    sprintf(variables, "{\"tags\":%s}", tags_array);
+    sprintf(variables, "{\"input\":%s}", tags_array);
+    
+    printf("[DEBUG] wincc_write_tags: Query: %s\n", query);
+    printf("[DEBUG] wincc_write_tags: Variables: %s\n", variables);
     
     graphql_response_t* response = graphql_execute(client->graphql_client, query, variables);
     
     free(tags_array);
     free(variables);
     
-    if (!response) return NULL;
+    if (!response) {
+        printf("[DEBUG] wincc_write_tags: No response received\n");
+        return NULL;
+    }
+    
+    printf("[DEBUG] wincc_write_tags: Response: %s\n", response->json_string);
     
     cJSON* json = cJSON_Parse(response->json_string);
     graphql_response_free(response);
@@ -277,7 +354,7 @@ wincc_write_results_t* wincc_write_tags(wincc_client_t* client, const wincc_tag_
     wincc_write_results_t* results = calloc(1, sizeof(wincc_write_results_t));
     
     cJSON* data = cJSON_GetObjectItem(json, "data");
-    cJSON* write_tags = cJSON_GetObjectItem(data, "WriteTags");
+    cJSON* write_tags = cJSON_GetObjectItem(data, "writeTagValues");
     
     if (write_tags) {
         results->count = cJSON_GetArraySize(write_tags);
@@ -310,63 +387,71 @@ wincc_write_results_t* wincc_write_tags(wincc_client_t* client, const wincc_tag_
 wincc_browse_results_t* wincc_browse(wincc_client_t* client, const char* path) {
     if (!client) return NULL;
     
-    const char* query = "query Browse($path: String) { "
-                       "Browse(path: $path) { "
-                       "items { name type address childrenCount } "
-                       "error { code description } } }";
+    printf("[DEBUG] wincc_browse: Browsing path: %s\n", path ? path : "(root)");
+    
+    const char* query = "query Browse($nameFilters: [String]) { "
+                       "browse(nameFilters: $nameFilters) { "
+                       "name displayName objectType dataType } }";
     
     char variables[512] = "";
     if (path) {
         char* escaped_path = escape_json_string(path);
-        snprintf(variables, sizeof(variables), "{\"path\":\"%s\"}", escaped_path);
+        snprintf(variables, sizeof(variables), "{\"nameFilters\":[\"%s\"]}", escaped_path);
         free(escaped_path);
+    } else {
+        strcpy(variables, "{\"nameFilters\":[]}");
     }
     
-    graphql_response_t* response = graphql_execute(client->graphql_client, query, 
-                                                   strlen(variables) > 0 ? variables : NULL);
+    printf("[DEBUG] wincc_browse: Query: %s\n", query);
+    printf("[DEBUG] wincc_browse: Variables: %s\n", variables);
     
-    if (!response) return NULL;
+    graphql_response_t* response = graphql_execute(client->graphql_client, query, variables);
+    
+    if (!response) {
+        printf("[DEBUG] wincc_browse: No response received\n");
+        return NULL;
+    }
+    
+    printf("[DEBUG] wincc_browse: Response: %s\n", response->json_string);
     
     cJSON* json = cJSON_Parse(response->json_string);
     graphql_response_free(response);
     
-    if (!json) return NULL;
+    if (!json) {
+        printf("[DEBUG] wincc_browse: Failed to parse JSON\n");
+        return NULL;
+    }
     
     wincc_browse_results_t* results = calloc(1, sizeof(wincc_browse_results_t));
     
     cJSON* data = cJSON_GetObjectItem(json, "data");
-    cJSON* browse = cJSON_GetObjectItem(data, "Browse");
+    if (!data) {
+        printf("[DEBUG] wincc_browse: No 'data' field in response\n");
+    }
+    
+    cJSON* browse = cJSON_GetObjectItem(data, "browse");
+    if (!browse) {
+        printf("[DEBUG] wincc_browse: No 'browse' field in data\n");
+    }
     
     if (browse) {
-        cJSON* error = cJSON_GetObjectItem(browse, "error");
-        if (error) {
-            results->error = malloc(sizeof(wincc_error_t));
-            cJSON* code = cJSON_GetObjectItem(error, "code");
-            cJSON* desc = cJSON_GetObjectItem(error, "description");
-            
-            results->error->error_code = strdup(code ? code->valuestring : "");
-            results->error->description = strdup(desc ? desc->valuestring : "");
-        }
+        results->count = cJSON_GetArraySize(browse);
+        printf("[DEBUG] wincc_browse: Found %zu items\n", results->count);
+        results->items = calloc(results->count, sizeof(wincc_browse_item_t));
         
-        cJSON* items = cJSON_GetObjectItem(browse, "items");
-        if (items) {
-            results->count = cJSON_GetArraySize(items);
-            results->items = calloc(results->count, sizeof(wincc_browse_item_t));
+        for (size_t i = 0; i < results->count; i++) {
+            cJSON* item = cJSON_GetArrayItem(browse, i);
+            wincc_browse_item_t* browse_item = &results->items[i];
             
-            for (size_t i = 0; i < results->count; i++) {
-                cJSON* item = cJSON_GetArrayItem(items, i);
-                wincc_browse_item_t* browse_item = &results->items[i];
-                
-                cJSON* name = cJSON_GetObjectItem(item, "name");
-                cJSON* type = cJSON_GetObjectItem(item, "type");
-                cJSON* address = cJSON_GetObjectItem(item, "address");
-                cJSON* children = cJSON_GetObjectItem(item, "childrenCount");
-                
-                if (name) browse_item->name = strdup(name->valuestring);
-                if (type) browse_item->type = strdup(type->valuestring);
-                if (address) browse_item->address = strdup(address->valuestring);
-                if (children) browse_item->children_count = children->valueint;
-            }
+            cJSON* name = cJSON_GetObjectItem(item, "name");
+            cJSON* displayName = cJSON_GetObjectItem(item, "displayName");
+            cJSON* objectType = cJSON_GetObjectItem(item, "objectType");
+            cJSON* dataType = cJSON_GetObjectItem(item, "dataType");
+            
+            if (name) browse_item->name = strdup(name->valuestring);
+            if (objectType) browse_item->type = strdup(objectType->valuestring);
+            if (name) browse_item->address = strdup(name->valuestring); // Use name as address
+            browse_item->children_count = 0; // Not available in new API
         }
     }
     
@@ -377,57 +462,71 @@ wincc_browse_results_t* wincc_browse(wincc_client_t* client, const char* path) {
 wincc_alarms_t* wincc_get_active_alarms(wincc_client_t* client) {
     if (!client) return NULL;
     
-    const char* query = "query GetActiveAlarms { "
-                       "GetActiveAlarms { "
-                       "id state name text className comeTime goTime ackTime "
-                       "error { code description } } }";
+    printf("[DEBUG] wincc_get_active_alarms: Getting active alarms\n");
+    
+    const char* query = "query { "
+                       "activeAlarms { "
+                       "name instanceID state eventText alarmClassName "
+                       "raiseTime clearTime acknowledgmentTime } }";
+    
+    printf("[DEBUG] wincc_get_active_alarms: Query: %s\n", query);
     
     graphql_response_t* response = graphql_execute(client->graphql_client, query, NULL);
     
-    if (!response) return NULL;
+    if (!response) {
+        printf("[DEBUG] wincc_get_active_alarms: No response received\n");
+        return NULL;
+    }
+    
+    printf("[DEBUG] wincc_get_active_alarms: Response: %s\n", response->json_string);
     
     cJSON* json = cJSON_Parse(response->json_string);
     graphql_response_free(response);
     
-    if (!json) return NULL;
+    if (!json) {
+        printf("[DEBUG] wincc_get_active_alarms: Failed to parse JSON\n");
+        return NULL;
+    }
     
     wincc_alarms_t* results = calloc(1, sizeof(wincc_alarms_t));
     
     cJSON* data = cJSON_GetObjectItem(json, "data");
-    cJSON* alarms = cJSON_GetObjectItem(data, "GetActiveAlarms");
+    if (!data) {
+        printf("[DEBUG] wincc_get_active_alarms: No 'data' field in response\n");
+    }
+    
+    cJSON* alarms = cJSON_GetObjectItem(data, "activeAlarms");
+    if (!alarms) {
+        printf("[DEBUG] wincc_get_active_alarms: No 'activeAlarms' field in data\n");
+    }
     
     if (alarms) {
         results->count = cJSON_GetArraySize(alarms);
+        printf("[DEBUG] wincc_get_active_alarms: Found %zu alarms\n", results->count);
         results->items = calloc(results->count, sizeof(wincc_alarm_t));
         
         for (size_t i = 0; i < results->count; i++) {
             cJSON* item = cJSON_GetArrayItem(alarms, i);
             wincc_alarm_t* alarm = &results->items[i];
             
-            cJSON* id = cJSON_GetObjectItem(item, "id");
-            cJSON* state = cJSON_GetObjectItem(item, "state");
             cJSON* name = cJSON_GetObjectItem(item, "name");
-            cJSON* text = cJSON_GetObjectItem(item, "text");
-            cJSON* class_name = cJSON_GetObjectItem(item, "className");
-            cJSON* come_time = cJSON_GetObjectItem(item, "comeTime");
-            cJSON* go_time = cJSON_GetObjectItem(item, "goTime");
-            cJSON* ack_time = cJSON_GetObjectItem(item, "ackTime");
-            cJSON* error = cJSON_GetObjectItem(item, "error");
+            cJSON* instanceID = cJSON_GetObjectItem(item, "instanceID");
+            cJSON* state = cJSON_GetObjectItem(item, "state");
+            cJSON* eventText = cJSON_GetObjectItem(item, "eventText");
+            cJSON* alarmClassName = cJSON_GetObjectItem(item, "alarmClassName");
             
-            if (id) alarm->id = strdup(id->valuestring);
+            if (instanceID) {
+                char id_str[32];
+                snprintf(id_str, sizeof(id_str), "%d", instanceID->valueint);
+                alarm->id = strdup(id_str);
+            }
             if (state) alarm->state = strdup(state->valuestring);
             if (name) alarm->name = strdup(name->valuestring);
-            if (text) alarm->text = strdup(text->valuestring);
-            if (class_name) alarm->class_name = strdup(class_name->valuestring);
-            
-            if (error) {
-                alarm->error = malloc(sizeof(wincc_error_t));
-                cJSON* code = cJSON_GetObjectItem(error, "code");
-                cJSON* desc = cJSON_GetObjectItem(error, "description");
-                
-                alarm->error->error_code = strdup(code ? code->valuestring : "");
-                alarm->error->description = strdup(desc ? desc->valuestring : "");
+            if (eventText && cJSON_GetArraySize(eventText) > 0) {
+                cJSON* first_text = cJSON_GetArrayItem(eventText, 0);
+                if (first_text) alarm->text = strdup(first_text->valuestring);
             }
+            if (alarmClassName) alarm->class_name = strdup(alarmClassName->valuestring);
         }
     }
     
@@ -438,12 +537,26 @@ wincc_alarms_t* wincc_get_active_alarms(wincc_client_t* client) {
 wincc_error_t* wincc_acknowledge_alarm(wincc_client_t* client, const char* alarm_id) {
     if (!client || !alarm_id) return NULL;
     
-    const char* query = "mutation AcknowledgeAlarm($alarmId: ID!) { "
-                       "AcknowledgeAlarm(alarmId: $alarmId) { "
-                       "error { code description } } }";
+    const char* query = "mutation AcknowledgeAlarms($input: [AlarmIdentifierInput]!) { "
+                       "acknowledgeAlarms(input: $input) { "
+                       "alarmName alarmInstanceID error { code description } } }";
     
-    char variables[256];
-    snprintf(variables, sizeof(variables), "{\"alarmId\":\"%s\"}", alarm_id);
+    char variables[512];
+    // Parse alarm_id as instanceID, if not a number use it as alarm name
+    char* endptr;
+    long instance_id = strtol(alarm_id, &endptr, 10);
+    
+    if (*endptr == '\0') {
+        // It's a number, use as instanceID with empty name
+        snprintf(variables, sizeof(variables), 
+                 "{\"input\":[{\"name\":\"\",\"instanceID\":%ld}]}", instance_id);
+    } else {
+        // It's a name
+        char* escaped_name = escape_json_string(alarm_id);
+        snprintf(variables, sizeof(variables), 
+                 "{\"input\":[{\"name\":\"%s\",\"instanceID\":0}]}", escaped_name);
+        free(escaped_name);
+    }
     
     graphql_response_t* response = graphql_execute(client->graphql_client, query, variables);
     
@@ -465,17 +578,21 @@ wincc_error_t* wincc_acknowledge_alarm(wincc_client_t* client, const char* alarm
     }
     
     cJSON* data = cJSON_GetObjectItem(json, "data");
-    cJSON* ack = cJSON_GetObjectItem(data, "AcknowledgeAlarm");
-    cJSON* error_obj = cJSON_GetObjectItem(ack, "error");
+    cJSON* ack_results = cJSON_GetObjectItem(data, "acknowledgeAlarms");
     
     wincc_error_t* error = NULL;
-    if (error_obj) {
-        error = malloc(sizeof(wincc_error_t));
-        cJSON* code = cJSON_GetObjectItem(error_obj, "code");
-        cJSON* desc = cJSON_GetObjectItem(error_obj, "description");
+    if (ack_results && cJSON_GetArraySize(ack_results) > 0) {
+        cJSON* first_result = cJSON_GetArrayItem(ack_results, 0);
+        cJSON* error_obj = cJSON_GetObjectItem(first_result, "error");
         
-        error->error_code = strdup(code ? code->valuestring : "UNKNOWN_ERROR");
-        error->description = strdup(desc ? desc->valuestring : "Unknown error");
+        if (error_obj) {
+            error = malloc(sizeof(wincc_error_t));
+            cJSON* code = cJSON_GetObjectItem(error_obj, "code");
+            cJSON* desc = cJSON_GetObjectItem(error_obj, "description");
+            
+            error->error_code = strdup(code ? code->valuestring : "UNKNOWN_ERROR");
+            error->description = strdup(desc ? desc->valuestring : "Unknown error");
+        }
     }
     
     cJSON_Delete(json);

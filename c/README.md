@@ -41,7 +41,6 @@ sudo yum install libcurl-devel cjson-devel
 ### Using Make
 ```bash
 make
-make examples
 ```
 
 ### Using CMake
@@ -66,9 +65,10 @@ This installs:
 ### Environment Setup
 Before running examples, set the required environment variables:
 ```bash
-export WINCCUA_URL="https://your-server:4043"
-export WINCCUA_USERNAME="your-username"
-export WINCCUA_PASSWORD="your-password"
+export GRAPHQL_HTTP_URL="https://your-wincc-server/graphql"
+export GRAPHQL_WS_URL="wss://your-wincc-server/graphql"
+export GRAPHQL_USERNAME="your-username"
+export GRAPHQL_PASSWORD="your-password"
 ```
 
 Or source the provided environment script:
@@ -85,9 +85,9 @@ source ../setenv.sh
 int main() {
     // Create client
     wincc_client_t* client = wincc_client_new(
-        getenv("WINCCUA_URL"),
-        getenv("WINCCUA_USERNAME"),
-        getenv("WINCCUA_PASSWORD")
+        getenv("GRAPHQL_HTTP_URL"),
+        getenv("GRAPHQL_USERNAME"),
+        getenv("GRAPHQL_PASSWORD")
     );
     
     // Connect

@@ -76,11 +76,14 @@ void graphql_client_set_header(graphql_client_t* client, const char* name, const
     
     char header[1024];
     snprintf(header, sizeof(header), "%s: %s", name, value);
+    printf("[DEBUG] graphql_client_set_header: Adding header: %s\n", header);
     client->headers = curl_slist_append(client->headers, header);
 }
 
 graphql_response_t* graphql_execute(graphql_client_t* client, const char* query, const char* variables) {
     if (!client || !query) return NULL;
+    
+    printf("[DEBUG] graphql_execute: URL: %s\n", client->url);
     
     buffer_t response_buffer = {0};
     response_buffer.data = malloc(1024);
@@ -98,23 +101,30 @@ graphql_response_t* graphql_execute(graphql_client_t* client, const char* query,
         snprintf(json_body, len, "{\"query\":\"%s\"}", query);
     }
     
+    printf("[DEBUG] graphql_execute: Request body: %s\n", json_body);
+    
     curl_easy_setopt(client->curl, CURLOPT_URL, client->url);
     curl_easy_setopt(client->curl, CURLOPT_HTTPHEADER, client->headers);
     curl_easy_setopt(client->curl, CURLOPT_POSTFIELDS, json_body);
     curl_easy_setopt(client->curl, CURLOPT_WRITEFUNCTION, write_callback);
     curl_easy_setopt(client->curl, CURLOPT_WRITEDATA, &response_buffer);
     
+    printf("[DEBUG] graphql_execute: Performing CURL request...\n");
     CURLcode res = curl_easy_perform(client->curl);
     
     free(json_body);
     
     if (res != CURLE_OK) {
+        printf("[DEBUG] graphql_execute: CURL error: %s (code: %d)\n", curl_easy_strerror(res), res);
         free(client->last_error.message);
         client->last_error.message = strdup(curl_easy_strerror(res));
         client->last_error.code = res;
         free(response_buffer.data);
         return NULL;
     }
+    
+    printf("[DEBUG] graphql_execute: Response received, size: %zu\n", response_buffer.size);
+    printf("[DEBUG] graphql_execute: Response content: %s\n", response_buffer.data);
     
     graphql_response_t* response = malloc(sizeof(graphql_response_t));
     response->json_string = response_buffer.data;
