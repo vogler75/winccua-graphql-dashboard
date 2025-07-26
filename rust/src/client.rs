@@ -1,11 +1,13 @@
 //! Main WinCC Unified GraphQL client implementation
 
 use crate::error::{WinCCError, WinCCResult};
-use crate::graphql::{mutations, queries};
+use crate::graphql::{mutations, queries, subscriptions};
+use crate::graphql_ws_client::{GraphQLWSClient, SubscriptionCallbacks, Subscription};
 use crate::types::*;
 use reqwest::blocking::Client;
 use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION, CONTENT_TYPE};
 use serde_json::{json, Value};
+use std::collections::HashMap;
 
 /// Main WinCC Unified GraphQL client
 /// 
@@ -14,7 +16,9 @@ use serde_json::{json, Value};
 pub struct WinCCUnifiedClient {
     http_client: Client,
     http_url: String,
+    ws_url: Option<String>,
     token: Option<String>,
+    ws_client: Option<GraphQLWSClient>,
 }
 
 impl WinCCUnifiedClient {
@@ -33,7 +37,24 @@ impl WinCCUnifiedClient {
         Self {
             http_client: Client::new(),
             http_url: http_url.to_string(),
+            ws_url: None,
             token: None,
+            ws_client: None,
+        }
+    }
+
+    /// Create a new WinCC Unified client with WebSocket support
+    /// 
+    /// # Arguments
+    /// * `http_url` - The HTTP URL for GraphQL queries and mutations
+    /// * `ws_url` - The WebSocket URL for GraphQL subscriptions
+    pub fn new_with_ws(http_url: &str, ws_url: &str) -> Self {
+        Self {
+            http_client: Client::new(),
+            http_url: http_url.to_string(),
+            ws_url: Some(ws_url.to_string()),
+            token: None,
+            ws_client: None,
         }
     }
     
@@ -43,6 +64,11 @@ impl WinCCUnifiedClient {
     /// * `token` - The bearer token for authentication
     pub fn set_token(&mut self, token: &str) {
         self.token = Some(token.to_string());
+        
+        // Update WebSocket client token if it exists
+        if let Some(ws_client) = &self.ws_client {
+            ws_client.update_token(token.to_string());
+        }
     }
     
     /// Clear the authentication token
@@ -753,5 +779,148 @@ impl WinCCUnifiedClient {
         let result = self.request(mutations::UNSHELVE_ALARMS, Some(variables))?;
         let unshelve_results: Vec<AlarmMutationResult> = serde_json::from_value(result["unshelveAlarms"].clone())?;
         Ok(unshelve_results)
+    }
+
+    // WebSocket Subscription Methods
+
+    /// Initialize WebSocket connection for subscriptions
+    /// This must be called before using any subscription methods
+    pub async fn connect_ws(&mut self) -> WinCCResult<()> {
+        if let Some(ws_url) = &self.ws_url {
+            let token = self.token.clone().unwrap_or_default();
+            let mut ws_client = GraphQLWSClient::new(ws_url.clone(), token);
+            ws_client.connect().await?;
+            self.ws_client = Some(ws_client);
+            Ok(())
+        } else {
+            Err(WinCCError::InvalidParameter("WebSocket URL not configured".to_string()))
+        }
+    }
+
+    /// Disconnect WebSocket connection
+    pub async fn disconnect_ws(&mut self) {
+        if let Some(mut ws_client) = self.ws_client.take() {
+            ws_client.disconnect().await;
+        }
+    }
+
+    /// Subscribe to tag values for the tags based on the provided names list.
+    /// Notifications contain reason (Added, Modified, Removed, Removed (Name changed)).
+    /// 
+    /// Returns: Subscription object with unsubscribe method
+    /// 
+    /// Callback receives: TagValueNotification object
+    /// ```json
+    /// {
+    ///   "name": "string",
+    ///   "value": {
+    ///     "value": "variant",
+    ///     "timestamp": "timestamp",
+    ///     "quality": "Quality"
+    ///   },
+    ///   "error": {
+    ///     "code": "string",
+    ///     "description": "string"
+    ///   },
+    ///   "notificationReason": "string"
+    /// }
+    /// ```
+    /// 
+    /// Errors:
+    /// - 2 - Cannot resolve provided name
+    /// - 202 - Only leaf elements of a Structure Tag can be addressed
+    pub async fn subscribe_to_tag_values(
+        &self,
+        names: Vec<String>,
+        callbacks: SubscriptionCallbacks,
+    ) -> WinCCResult<Subscription> {
+        if let Some(ws_client) = &self.ws_client {
+            let mut variables = HashMap::new();
+            variables.insert("names".to_string(), json!(names));
+            
+            ws_client
+                .subscribe(subscriptions::TAG_VALUES.to_string(), variables, callbacks)
+                .await
+        } else {
+            Err(WinCCError::OperationFailed("WebSocket not connected".to_string()))
+        }
+    }
+
+    /// Subscribe for active alarms matching the given filters.
+    /// Notifications contain reason (Added, Modified, Removed).
+    /// 
+    /// Returns: Subscription object with unsubscribe method
+    /// 
+    /// Callback receives: ActiveAlarmNotification object with all ActiveAlarm fields plus notificationReason
+    /// 
+    /// Errors:
+    /// - 301 - Syntax error in query string
+    /// - 302 - Invalid language
+    /// - 303 - Invalid filter language
+    pub async fn subscribe_to_active_alarms(
+        &self,
+        system_names: Vec<String>,
+        filter_string: String,
+        filter_language: String,
+        languages: Vec<String>,
+        callbacks: SubscriptionCallbacks,
+    ) -> WinCCResult<Subscription> {
+        if let Some(ws_client) = &self.ws_client {
+            let mut variables = HashMap::new();
+            variables.insert("systemNames".to_string(), json!(system_names));
+            variables.insert("filterString".to_string(), json!(filter_string));
+            variables.insert("filterLanguage".to_string(), json!(filter_language));
+            variables.insert("languages".to_string(), json!(languages));
+            
+            ws_client
+                .subscribe(subscriptions::ACTIVE_ALARMS.to_string(), variables, callbacks)
+                .await
+        } else {
+            Err(WinCCError::OperationFailed("WebSocket not connected".to_string()))
+        }
+    }
+
+    /// Subscribe for active alarms with default filters
+    pub async fn subscribe_to_active_alarms_simple(
+        &self,
+        callbacks: SubscriptionCallbacks,
+    ) -> WinCCResult<Subscription> {
+        self.subscribe_to_active_alarms(
+            vec![],
+            String::new(),
+            "en-US".to_string(),
+            vec!["en-US".to_string()],
+            callbacks,
+        ).await
+    }
+
+    /// Subscribe to redundancy state notifications.
+    /// Notifications contain information about the active/passive state of the system on state changes.
+    /// 
+    /// Returns: Subscription object with unsubscribe method
+    /// 
+    /// Callback receives: ReduStateNotification object
+    /// ```json
+    /// {
+    ///   "value": {
+    ///     "value": "ReduState (ACTIVE | PASSIVE)",
+    ///     "timestamp": "timestamp"
+    ///   },
+    ///   "notificationReason": "string"
+    /// }
+    /// ```
+    pub async fn subscribe_to_redu_state(
+        &self,
+        callbacks: SubscriptionCallbacks,
+    ) -> WinCCResult<Subscription> {
+        if let Some(ws_client) = &self.ws_client {
+            let variables = HashMap::new();
+            
+            ws_client
+                .subscribe(subscriptions::REDU_STATE.to_string(), variables, callbacks)
+                .await
+        } else {
+            Err(WinCCError::OperationFailed("WebSocket not connected".to_string()))
+        }
     }
 }
