@@ -76,51 +76,6 @@ Or source the provided environment script:
 source ../setenv.sh
 ```
 
-### Basic Example
-
-```c
-#include <winccunified/wincc_unified.h>
-#include <stdio.h>
-
-int main() {
-    // Create client
-    wincc_client_t* client = wincc_client_new(
-        getenv("GRAPHQL_HTTP_URL"),
-        getenv("GRAPHQL_USERNAME"),
-        getenv("GRAPHQL_PASSWORD")
-    );
-    
-    // Connect
-    wincc_error_t* error = wincc_connect(client);
-    if (error) {
-        fprintf(stderr, "Connection failed: %s\n", error->description);
-        wincc_error_free(error);
-        wincc_client_free(client);
-        return 1;
-    }
-    
-    // Read tags
-    const char* tags[] = {"Silo1_Temperature", "Silo1_Pressure"};
-    wincc_tag_results_t* results = wincc_read_tags(client, tags, 2);
-    
-    if (results) {
-        for (size_t i = 0; i < results->count; i++) {
-            wincc_tag_result_t* tag = &results->items[i];
-            if (!tag->error) {
-                printf("%s = %s\n", tag->name, tag->value);
-            }
-        }
-        wincc_tag_results_free(results);
-    }
-    
-    // Disconnect and cleanup
-    wincc_disconnect(client);
-    wincc_client_free(client);
-    
-    return 0;
-}
-```
-
 ## API Reference
 
 ### Client Management
