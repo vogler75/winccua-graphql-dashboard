@@ -2,7 +2,7 @@
 
 use crate::error::{WinCCError, WinCCResult};
 use crate::graphql::{mutations, queries, subscriptions};
-use crate::graphql_ws_client::{GraphQLWSClient, SubscriptionCallbacks, Subscription};
+use crate::graphql_ws::{GraphQLWSClient, SubscriptionCallbacks, Subscription};
 use crate::types::*;
 use reqwest::blocking::Client;
 use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION, CONTENT_TYPE};

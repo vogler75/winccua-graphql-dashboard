@@ -14,12 +14,12 @@ pub mod client;
 pub mod error;
 pub mod graphql;
 pub mod types;
-pub mod graphql_ws_client;
+pub mod graphql_ws;
 
 pub use client::WinCCUnifiedClient;
 pub use error::{WinCCError, WinCCResult};
 pub use types::*;
-pub use graphql_ws_client::{GraphQLWSClient, SubscriptionCallbacks, Subscription};
+pub use graphql_ws::{GraphQLWSClient, SubscriptionCallbacks, Subscription};
 pub use graphql::subscriptions;
 
 // Re-export common types for convenience
