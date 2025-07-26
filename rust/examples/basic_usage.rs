@@ -48,7 +48,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             for tag_value in tag_values {
                 println!("  Name: {:?}", tag_value.name);
                 println!("  Value: {:?}", tag_value.value);
-                println!("  Error: {:?}", tag_value.error);
+                if let Some(ref error) = tag_value.error {
+                    if let Some(ref code) = error.code {
+                        if code != "0" {
+                            println!("  Error: {:?}", error);
+                        }
+                    } else {
+                        println!("  Error: {:?}", error);
+                    }
+                }
             }
         }
         Err(e) => {
@@ -78,7 +86,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             println!("Write results:");
             for result in results {
                 println!("  Name: {:?}", result.name);
-                println!("  Error: {:?}", result.error);
+                if let Some(ref error) = result.error {
+                    if let Some(ref code) = error.code {
+                        if code != "0" {
+                            println!("  Error: {:?}", error);
+                        }
+                    } else {
+                        println!("  Error: {:?}", error);
+                    }
+                }
             }
         }
         Err(e) => {
@@ -128,8 +144,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Ok(results) => {
             println!("Acknowledge results:");
             for result in results {
-                println!("  Name: {:?}, Instance ID: {:?}, Error: {:?}", 
-                    result.alarm_name, result.alarm_instance_id, result.error);
+                print!("  Name: {:?}, Instance ID: {:?}", 
+                    result.alarm_name, result.alarm_instance_id);
+                if let Some(ref error) = result.error {
+                    if let Some(ref code) = error.code {
+                        if code != "0" {
+                            println!(", Error: {:?}", error);
+                        } else {
+                            println!();
+                        }
+                    } else {
+                        println!(", Error: {:?}", error);
+                    }
+                } else {
+                    println!();
+                }
             }
         }
         Err(e) => {
@@ -161,7 +190,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             for logged_value in logged_values {
                 println!("  Tag: {:?}", logged_value.logging_tag_name);
                 println!("  Values count: {:?}", logged_value.values.as_ref().map(|v| v.len()));
-                println!("  Error: {:?}", logged_value.error);
+                if let Some(ref error) = logged_value.error {
+                    if let Some(ref code) = error.code {
+                        if code != "0" {
+                            println!("  Error: {:?}", error);
+                        }
+                    } else {
+                        println!("  Error: {:?}", error);
+                    }
+                }
             }
         }
         Err(e) => {
