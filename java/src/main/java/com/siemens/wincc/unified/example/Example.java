@@ -228,7 +228,6 @@ public class Example {
                     @SuppressWarnings("unchecked")
                     Map<String, Object> activeAlarms = (Map<String, Object>) dataMap.get("activeAlarms");
                     if (activeAlarms != null) {
-                        logger.info("DATA2");
                         String reason = (String) activeAlarms.getOrDefault("notificationReason", "UPDATE");
                         @SuppressWarnings("unchecked")
                         List<String> eventTexts = (List<String>) activeAlarms.get("eventText");
